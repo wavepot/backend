@@ -2826,7 +2826,11 @@ class Editor {
     this.char = {};
     this.char.metrics = this.ctx.text.measureText('M');
     this.char.width = this.char.metrics.width;
-    this.char.height = this.char.metrics.emHeightDescent;
+    this.char.height =
+      (this.char.metrics.actualBoundingBoxDescent
+      - this.char.metrics.actualBoundingBoxAscent)
+      * 1.12;
+    // this.char.metrics.emHeightDescent
 
     this.gutter = { padding: 3, width: 0, height: 0 };
 
