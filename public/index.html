@@ -5,7 +5,6 @@
 <link rel="stylesheet" href="/style.css">
 </head>
 <body>
-<button id="save">SAVE</button>
 <div id="container">
 <div id="vis">
 <canvas id="waveform" width="400" height="250"></canvas>
@@ -13,6 +12,7 @@
 <canvas id="frequency" width="400" height="250"></canvas>
 </div>
 <article>
+<button id="save">SAVE</button>
 <h1 id="projectname" contenteditable=true>project name (edit me)</h1>
 
 <pre><code title="saw.js" type="shot">
@@ -35,7 +35,7 @@ export default c => saw(c, { hz: 100 })
 <option value="loop">loop</option>
 </select>
 </label>
-<button id="add">add another</button>
+<button id="add">+ add another</button>
 </div>
 
 </article>

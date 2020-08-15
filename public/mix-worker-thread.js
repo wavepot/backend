@@ -594,23 +594,23 @@ var mixBuffers = (target, ...sources) => {
     if (target.length === 2) {
       if (source.length === 2) { // stereo to stereo
         for (let x = 0; x < tl; x++) {
-          target[0][x] += source[0][x%sl%rl];
-          target[1][x] += source[1][x%sl%rl];
+          target[0][x%tl] += source[0][x%sl%rl];
+          target[1][x%tl] += source[1][x%sl%rl];
         }
       } else if (source.length === 1) { // mono to stereo
         for (let x = 0; x < tl; x++) {
-          target[0][x] += source[0][x%sl%rl]/2;
-          target[1][x] += source[0][x%sl%rl]/2;
+          target[0][x%tl] += source[0][x%sl%rl]/2;
+          target[1][x%tl] += source[0][x%sl%rl]/2;
         }
       }
     } else if (target.length === 1) {
       if (source.length === 2) { // stereo to mono
         for (let x = 0; x < tl; x++) {
-          target[0][x] += (source[0][x%sl%rl] + source[1][x%sl%rl])/2;
+          target[0][x%tl] += (source[0][x%sl%rl] + source[1][x%sl%rl])/2;
         }
       } else if (source.length === 1) { // mono to mono
         for (let x = 0; x < tl; x++) {
-          target[0][x] += source[0][x%sl%rl];
+          target[0][x%tl] += source[0][x%sl%rl];
         }
       }
     }
@@ -816,7 +816,10 @@ class Context {
   // input[0]=L
   // input[1]=R if stereo, otherwise L
   get input () {
-    return this.buffer.map(buf => buf[this.p])
+    return [
+      this.buffer[0][this.p],
+      this.buffer[1]?.[this.p]??this.buffer[0][this.p]
+    ]
   }
 
   get x () {

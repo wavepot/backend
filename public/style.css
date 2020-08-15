@@ -15,16 +15,41 @@ h1 {
   margin-bottom: 20px;
 }
 
+article input, article select, article button {
+  background: none;
+  font-family: 'Work Sans';
+  color: #fff;
+  padding: 3px 10px 3px 10px;
+  border: 1px solid #333;
+  height: 30px;
+}
+
+article input:focus, article select:focus, article button:hover {
+  border-color: #eee;
+}
+
+article button {
+  cursor: pointer;
+}
+
+article label {
+  font-size: 10pt;
+}
+article option {
+  color: #000;
+}
+
 h1 {
   font-family: 'Work Sans';
   font-style: normal;
+  font-weight: normal;
   color: #f00;
   font-size: 160%;
   position: relative;
   top: -3px;
   vertical-align: middle;
   display: inline-block;
-  text-shadow: 0px 10px #000;
+  /*text-shadow: 0px 10px #000;*/
 }
 
 h2 {
@@ -48,6 +73,7 @@ article {
   text-align: center;
   overflow-y: scroll;
   flex: 1;
+  padding-bottom: 300px;
 }
 
 p {
@@ -91,8 +117,8 @@ code {
   right: 10px;
   top: 0;
   line-height: 38px;
-  font-size: 45px;
-  color: #779;
+  font-size: 35px;
+  color: #334;
   cursor: pointer;
 }
 .play:before {
@@ -100,14 +126,14 @@ code {
   font-size: 11pt;
   vertical-align: middle;
   margin-right: 10px;
-  color: #fff;
+  color: #444;
   font-style: italic;
   content: 'play';
   font-family: 'Work Sans';
 }
 .play.loop {
   top: 3px;
-  right: 7px;
+  right: 9px;
 }
 .play.loop:before {
   content: 'loop';
@@ -116,12 +142,12 @@ code {
 }
 .play.loop.playing:before {
   content: 'pause';
-  top: -7px;
+  top: -6px;
   left: -1px;
 }
 .play.loop.playing {
   color: #0f0;
-  font-size: 66px;
+  font-size: 50px;
   top: 4px;
   right: 14px;
 }
@@ -204,4 +230,23 @@ code {
   position: fixed;
   right: 25px;
   top: 10px;
+}
+
+/* remove button */
+.remove {
+  position: absolute;
+  left: -25px;
+  top: -7px;
+  border: none;
+  background: none;
+  color: #444;
+}
+.remove:hover {
+  color: #f00;
+  cursor: pointer;
+}
+
+/* add editor button */
+#addeditor {
+  margin-top: 20px;
 }

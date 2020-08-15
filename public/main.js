@@ -2664,7 +2664,7 @@ const colors = {
   scrollbar: '#555',
   lineNumbers: '#888',
   titlebar: '#000',
-  title: '#668',
+  title: '#557',
 };
 
 const theme = {
@@ -3770,6 +3770,7 @@ class Editor {
       this.canvas.title.height
     );
     this.applyFont(this.ctx.title);
+    this.ctx.title.font = `normal ${parseFloat(this.fontSize)-1.5}pt Space Mono`;
     this.ctx.title.scale(this.canvas.pixelRatio, this.canvas.pixelRatio);
     this.ctx.title.fillStyle = theme.title;
     this.ctx.title.fillText(
@@ -5307,7 +5308,7 @@ class LoopNode {
     this.playing = false;
     if (this.playingNode) {
       this.playingNode.onended = () => this._onended();
-      this.playingNode.stop();
+      this.playingNode.stop(syncTime);
     }
     if (this.scheduledNode) {
       this.scheduledNode.stop(0);
@@ -5929,23 +5930,23 @@ var mixBuffers = (target, ...sources) => {
     if (target.length === 2) {
       if (source.length === 2) { // stereo to stereo
         for (let x = 0; x < tl; x++) {
-          target[0][x] += source[0][x%sl%rl];
-          target[1][x] += source[1][x%sl%rl];
+          target[0][x%tl] += source[0][x%sl%rl];
+          target[1][x%tl] += source[1][x%sl%rl];
         }
       } else if (source.length === 1) { // mono to stereo
         for (let x = 0; x < tl; x++) {
-          target[0][x] += source[0][x%sl%rl]/2;
-          target[1][x] += source[0][x%sl%rl]/2;
+          target[0][x%tl] += source[0][x%sl%rl]/2;
+          target[1][x%tl] += source[0][x%sl%rl]/2;
         }
       }
     } else if (target.length === 1) {
       if (source.length === 2) { // stereo to mono
         for (let x = 0; x < tl; x++) {
-          target[0][x] += (source[0][x%sl%rl] + source[1][x%sl%rl])/2;
+          target[0][x%tl] += (source[0][x%sl%rl] + source[1][x%sl%rl])/2;
         }
       } else if (source.length === 1) { // mono to mono
         for (let x = 0; x < tl; x++) {
-          target[0][x] += source[0][x%sl%rl];
+          target[0][x%tl] += source[0][x%sl%rl];
         }
       }
     }
@@ -6151,7 +6152,10 @@ class Context {
   // input[0]=L
   // input[1]=R if stereo, otherwise L
   get input () {
-    return this.buffer.map(buf => buf[this.p])
+    return [
+      this.buffer[0][this.p],
+      this.buffer[1]?.[this.p]??this.buffer[0][this.p]
+    ]
   }
 
   get x () {
@@ -6420,10 +6424,10 @@ const main = async () => {
       id: id++,
       title: node.title,
       value: node.textContent.trim(),
-      fontSize: '11.5pt',
+      fontSize: '10.5pt',
       width: 620,
       height: 1,
-      padding: 10,
+      padding: 15,
       autoResize: true,
       pseudoWorker: true,
       projectName,
@@ -6439,6 +6443,17 @@ const main = async () => {
     play.textContent = PlayIcon[type];
     play.style.zIndex = '1000';
     div.appendChild(play);
+
+    const remove = document.createElement('button');
+    remove.className = 'remove';
+    remove.onclick = () => {
+      if (confirm('Are you sure? There is no undo!')) {
+        div.parentNode.removeChild(div);
+        widgets.splice(widgets.indexOf(widget), 1);
+      }
+    };
+    remove.textContent = '×';
+    div.appendChild(remove);
 
     const errors = document.createElement('div');
     errors.className = 'errors';
@@ -6593,7 +6608,7 @@ const main = async () => {
   setTimeout(() => {
     scheduleUpdate.clear();
     document.querySelector('.play').dispatchEvent(new MouseEvent('mousedown'));
-  }, 300);
+  }, 1000);
 };
 
 const drawWorker = new Worker('/draw-worker.js', { type: 'module' });
@@ -6621,8 +6636,6 @@ drawWorker.postMessage({
 
 const draw = (data) => {
   drawWorker.postMessage({ draw: data });
-  // drawWaveform(waveform, data)
-  // drawSpectrogram(spectrogram, data)
 };
 
 main();

@@ -5,7 +5,7 @@ const express = require('express')
 const randomId = require('./random-id.js')
 const morgan = require('morgan')
 
-const env = process.env.NODE_ENV
+const env = process.env.NODE_ENV ?? 'production'
 const PUBLIC_PATH = path.join(__dirname, 'public')
 const PROJECTS_PATH = path.join(__dirname, 'projects', env)
 const SPA_PATH = path.join(PUBLIC_PATH, 'index.html')
