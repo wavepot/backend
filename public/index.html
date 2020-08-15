@@ -1,0 +1,45 @@
+<html>
+<head>
+<meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&family=Work+Sans:ital,wght@0,400;0,500;1,400;1,500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<button id="save">SAVE</button>
+<div id="container">
+<div id="vis">
+<canvas id="waveform" width="400" height="250"></canvas>
+<canvas id="spectrogram" width="400" height="250"></canvas>
+<canvas id="frequency" width="400" height="250"></canvas>
+</div>
+<article>
+<h1 id="projectname" contenteditable=true>project name (edit me)</h1>
+
+<pre><code title="saw.js" type="shot">
+export default (c, { hz = 50 }) =>
+  1 - 2 * (c.s % (1 / hz)) * hz
+</code></pre>
+
+<pre><code title="saw-loop.js" type="loop" bpm="135">
+import saw from './saw.js'
+export default c => saw(c, { hz: 100 })
+</code></pre>
+
+<div id="addeditor">
+<label>bpm
+<input id="addbpm" value="135" type="number" min="1" max="999" step="1">
+</label>
+<label>type
+<select id="addtype">
+<option value="shot">shot</option>
+<option value="loop">loop</option>
+</select>
+</label>
+<button id="add">add another</button>
+</div>
+
+</article>
+</div>
+<script type="module" src="/main.js"></script>
+</body>
+</html>
