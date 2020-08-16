@@ -14,7 +14,7 @@
 <article>
 <div id="topright">
 <label>bpm
-<input id="bpm" value="135" type="number" min="1" max="999" step="1">
+<input id="bpm" value="125" type="number" min="1" max="999" step="1">
 </label>
 <button id="save">SAVE</button>
 </div>
@@ -26,7 +26,7 @@ export default (c, { hz = 50 }) =>
   1 - 2 * (c.s % (1 / hz)) * hz
 </code></pre>
 
-<pre><code title="saw-loop.js" type="loop" bpm="135">
+<pre><code title="saw-loop.js" type="loop">
 import saw from './saw.js'
 export default c => saw(c, { hz: 100 })
 </code></pre>
