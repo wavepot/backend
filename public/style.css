@@ -16,7 +16,7 @@ h1 {
 }
 
 article input, article select, article button {
-  background: none;
+  background: #1a1a1a;
   font-family: 'Work Sans';
   color: #fff;
   padding: 3px 10px 3px 10px;
@@ -226,7 +226,7 @@ code {
 }
 
 /* save button */
-#save {
+#topright {
   position: fixed;
   right: 25px;
   top: 10px;
@@ -248,5 +248,10 @@ code {
 
 /* add editor button */
 #addeditor {
-  margin-top: 20px;
+  margin: 20px 0 8px;
+}
+
+/* import */
+#importurl {
+  width: 350px;
 }

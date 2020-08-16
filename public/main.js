@@ -6320,7 +6320,6 @@ const main = async () => {
     const node = document.createElement('code');
     node.setAttribute('title', data.title ?? 'untitled (ctrl+m to rename)');
     node.setAttribute('type', data.type ?? addtype.value);
-    node.setAttribute('bpm', data.bpm ?? addbpm.value);
     node.textContent = data.value ?? 'export default c => 0';
     pre.appendChild(node);
     addeditor.parentNode.insertBefore(pre, addeditor);
@@ -6328,17 +6327,28 @@ const main = async () => {
     return node
   };
 
-  const targetPathParts = location.pathname.split('/');
-  if (targetPathParts.length === 3) {
-    const res = await fetch(API_URL + location.pathname, {
+  const fetchImport = async url => {
+    const res = await fetch(url, {
       headers: {
         'Accept': 'application/json',
       }
     });
-    const json = await res.json()
-    ;[...document.querySelectorAll('pre')].forEach(node => node.parentNode.removeChild(node));
-    projectname.textContent = json.projectName;
+    const json = await res.json();
+    return json
+  };
+
+  importbutton.onclick = async () => {
+    const json = await fetchImport(importurl.value);
+    json.files.forEach(file => createWidget(createNode(file)));
+    importurl.value = '';
+  };
+
+  const targetPathParts = location.pathname.split('/');
+  if (targetPathParts.length === 3) {
+[...document.querySelectorAll('pre')].forEach(node => node.parentNode.removeChild(node));
+    const json = await fetchImport(API_URL + location.pathname);
     json.files.forEach(file => createNode(file));
+    projectname.textContent = json.projectName;
   }
 
   let playingWidget;
@@ -6392,8 +6402,7 @@ const main = async () => {
       return {
         title: widget.editor.title,
         value: widget.editor.value,
-        type: widget.type,
-        bpm: widget.bpm
+        type: widget.type
       }
     });
     console.log(files);
@@ -6423,7 +6432,6 @@ const main = async () => {
     widgets.push(widget);
 
     const type = widget.type = node.getAttribute('type');
-    const bpm = widget.bpm = toFinite(+node.getAttribute('bpm')) || 60;
 
     const editor = widget.editor = new Editor$1({
       id: id++,
@@ -6469,6 +6477,8 @@ const main = async () => {
     play.onmousedown = async () => {
       widget.n = 0;
 
+      const newBpm = toFinite(+bpm.value);
+
       const audio = Audio();
 
       const stop = () => {
@@ -6491,9 +6501,11 @@ const main = async () => {
         play.textContent = PlayIcon['playing'];
       }
 
-      if (!widget.node) {
+      if (!widget.node || widget.bpm != newBpm) {
+        widget.bpm = newBpm;
+
         const node = widget.node = new PlayNode[type];
-        node.setBpm(widget.bpm);
+        node.setBpm(toFinite(+bpm.value));
         node.connect(audio.gain);
 
         const size = node.bufferSize;
