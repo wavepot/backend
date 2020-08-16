@@ -271,3 +271,6 @@ code {
 #links a:hover {
   text-decoration: underline;
 }
+#recent a {
+  color: #444;
+}

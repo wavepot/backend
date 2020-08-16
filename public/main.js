@@ -6361,7 +6361,7 @@ const main = async () => {
     return node
   };
 
-  const fetchImport = async url => {
+  const fetchJson = async url => {
     const res = await fetch(url, {
       headers: {
         'Accept': 'application/json',
@@ -6371,8 +6371,14 @@ const main = async () => {
     return json
   };
 
+  fetchJson(API_URL + '/recent').then(json => {
+    recent.innerHTML = json.projects.map(p =>
+      `<a href="${location.origin}/${p}">${location.origin}/${p}</a>`
+    ).join('<br>');
+  });
+
   importbutton.onclick = async () => {
-    const json = await fetchImport(importurl.value);
+    const json = await fetchJson(importurl.value);
     json.files.forEach(file => createWidget(createNode(file)));
     importurl.value = '';
   };
@@ -6380,7 +6386,7 @@ const main = async () => {
   const targetPathParts = location.pathname.split('/');
   if (targetPathParts.length === 3) {
 [...document.querySelectorAll('pre')].forEach(node => node.parentNode.removeChild(node));
-    const json = await fetchImport(API_URL + location.pathname);
+    const json = await fetchJson(API_URL + location.pathname);
     json.files.forEach(file => createNode(file));
     projectname.textContent = json.projectName;
   }

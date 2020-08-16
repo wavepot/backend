@@ -25,6 +25,25 @@ if (env === 'development') {
 
 app.use(morgan(env === 'production' ? 'combined' : 'dev'))
 
+app.get('/recent', async (req, res, next) => {
+  const dir = PROJECTS_PATH
+
+  const projects = (await Promise.all(
+    (await fs.readdir(dir)).map(async project => {
+      const projectDir = path.join(dir, project)
+      console.log(projectDir)
+      return Promise.all(
+        (await fs.readdir(projectDir))
+          .map(async id =>
+            [project + '/' + id, await fs.stat(path.join(projectDir, id))]
+          ))})))
+    .flat()
+    .sort((b, a) => a[1].ctime - b[1].ctime)
+    .map(([name]) => name)
+
+  res.json({ projects })
+})
+
 app.use(express.static(PUBLIC_PATH))
 
 app.get('/:project/:id', async (req, res, next) => {
