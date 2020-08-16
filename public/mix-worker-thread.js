@@ -569,7 +569,7 @@ const mixWorker = (url, context) => {
 rpc.onfail = rpc.onerror = (error, url) => mixWorker.onerror?.(error, url);
 
 mixWorker.update = url => {
-  rpc(BUFFER_SERVICE_URL, 'clear', [url]);
+  // rpc(BUFFER_SERVICE_URL, 'clear', [url])
   rpc.update(getRpcUrl(url));
 };
 mixWorker.clear = () => rpc.clearAll();
@@ -731,14 +731,18 @@ class Context {
   }
 
   src (url, params = {}) {
-    this.url = new URL(url, this.url ?? location.href).href;
+    const targetUrl = new URL(url, this.url ?? location.href).href;
+    const context = Object.assign(this.toJSON(), params, { url: targetUrl });
       // const checksum = c.checksum
 
       // if (checksums[c.url + c.id] === checksum) return
 
       // checksums[c.url + c.id] = checksum
     // console.log('here!')
-    return mixWorker(this.url, Object.assign(this.toJSON(), params))
+    return mixWorker(targetUrl, context).then(result => {
+      result.update = c => { c.src(url, params); };
+      return result
+    })
   }
 
   mix(...args) {

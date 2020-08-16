@@ -311,8 +311,9 @@ self.methods = {
   getBuffer: (checksum, size, channels = 2) => {
     const id = (checksum + size + channels).toString();
     let buffer = buffers.get(id);
-    console.log(id + ' buffer found:', !!buffer);
-    setTimeout(garbageCollect, 5*1000);
+    // console.log(id + ' buffer found:', !!buffer)
+    // console.log([...buffers])
+    // setTimeout(garbageCollect, 5*1000)
     if (buffer) {
       buffer.createdNow = false;
       buffer.accessedAt = performance.now();

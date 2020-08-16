@@ -5909,7 +5909,7 @@ const mixWorker = (url, context) => {
 rpc.onfail = rpc.onerror = (error, url) => mixWorker.onerror?.(error, url);
 
 mixWorker.update = url => {
-  rpc(BUFFER_SERVICE_URL, 'clear', [url]);
+  // rpc(BUFFER_SERVICE_URL, 'clear', [url])
   rpc.update(getRpcUrl(url));
 };
 mixWorker.clear = () => rpc.clearAll();
@@ -6071,14 +6071,18 @@ class Context {
   }
 
   src (url, params = {}) {
-    this.url = new URL(url, this.url ?? location.href).href;
+    const targetUrl = new URL(url, this.url ?? location.href).href;
+    const context = Object.assign(this.toJSON(), params, { url: targetUrl });
       // const checksum = c.checksum
 
       // if (checksums[c.url + c.id] === checksum) return
 
       // checksums[c.url + c.id] = checksum
     // console.log('here!')
-    return mixWorker(this.url, Object.assign(this.toJSON(), params))
+    return mixWorker(targetUrl, context).then(result => {
+      result.update = c => { c.src(url, params); };
+      return result
+    })
   }
 
   mix(...args) {
@@ -6324,17 +6328,14 @@ const main = async () => {
     return node
   };
 
-  console.log(location.pathname);
   const targetPathParts = location.pathname.split('/');
-  console.log(targetPathParts);
   if (targetPathParts.length === 3) {
     const res = await fetch(API_URL + location.pathname, {
       headers: {
         'Accept': 'application/json',
       }
     });
-    const json = await res.json();
-    console.log('received!', json)
+    const json = await res.json()
     ;[...document.querySelectorAll('pre')].forEach(node => node.parentNode.removeChild(node));
     projectname.textContent = json.projectName;
     json.files.forEach(file => createNode(file));
@@ -6528,7 +6529,6 @@ const main = async () => {
         const time = performance.now();
         console.time('audio render');
         try {
-          console.log('PASS N', widget.n);
           await widget.mix(widget.fn, { n: widget.n });
           if (!widget.node.playing) return
         } catch (error) {
@@ -6553,7 +6553,7 @@ const main = async () => {
         errors.textContent = error.stack;
         console.timeEnd('audio render ' + widget.buffer[0].length);
         console.error('thrown error', error);
-        return
+        // return
       }
       console.timeEnd('audio render ' + widget.buffer[0].length);
 
