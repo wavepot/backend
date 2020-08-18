@@ -128,7 +128,16 @@ rpc.clearAll = () => (rpc.clear(), rpc.clearHanging());
 class Rpc {
   constructor (url) {
     this.url = url;
-    this.worker = new SafeDynamicWorker(url);
+
+    // here we distinguish between RPC instances
+    // that run in Workers and RPC instances in the
+    // main thread that interface as RPC workers
+    if (new URL(url).protocol === 'main:') {
+      this.worker = window[url].worker;
+    } else {
+      this.worker = new SafeDynamicWorker(url);
+    }
+
     this.worker.onmessage = ({ data }) => {
       if (!data.call) return
       if (!(data.call in this)) {
@@ -230,55 +239,63 @@ const getRpc = url => {
   }
 };
 
-self.rpc = rpc;
+const isMain$1 = typeof window !== 'undefined';
 
-self.callbacks = self.callbacks ?? new Map;
+const install = self => {
+  self.rpc = rpc;
 
-self.onmessage = async ({ data }) => {
-  try {
-    if (data.message.call === 'onreply') {
-      const { replyTo, error, result } = data.message;
-      const callback = self.callbacks.get(replyTo);
-      if (callback) {
-        self.callbacks.delete(replyTo);
-        if (error) {
-          callback.reject(error);
+  self.callbacks = self.callbacks ?? new Map;
+
+  self.onmessage = async ({ data }) => {
+    try {
+      if (data.message.call === 'onreply') {
+        const { replyTo, error, result } = data.message;
+        const callback = self.callbacks.get(replyTo);
+        if (callback) {
+          self.callbacks.delete(replyTo);
+          if (error) {
+            callback.reject(error);
+          } else {
+            callback.resolve(result);
+          }
         } else {
-          callback.resolve(result);
+          console.warn('onreply discarded (receiver dead?)', replyTo, result ?? error, location.href);
         }
-      } else {
-        console.warn('onreply discarded (receiver dead?)', replyTo, result ?? error, location.href);
+        self.postMessage({ ack: data.ackId });
+        return
       }
-      self.postMessage({ ack: data.ackId });
-      return
+      if (!(data.message.call in self.methods)) {
+        throw new ReferenceError(
+          'rpc: Method not found: ' + data.message.call)
+      }
+      const result = await self.methods[data.message.call](...data.message.args);
+      self.postMessage({
+        ack: data.ackId,
+        call: 'onreply',
+        replyTo: data.message.callbackId,
+        result
+      });
+    } catch (error) {
+      self.postMessage({
+        ack: data.ackId,
+        call: 'onreply',
+        replyTo: data.message.callbackId,
+        error
+      });
+      // self.postMessage({ call: 'onerror', error })
     }
-    if (!(data.message.call in self.methods)) {
-      throw new ReferenceError(
-        'rpc: Method not found: ' + data.message.call)
-    }
-    const result = await self.methods[data.message.call](...data.message.args);
-    self.postMessage({
-      ack: data.ackId,
-      call: 'onreply',
-      replyTo: data.message.callbackId,
-      result
-    });
-  } catch (error) {
-    self.postMessage({
-      ack: data.ackId,
-      call: 'onreply',
-      replyTo: data.message.callbackId,
-      error
-    });
-    // self.postMessage({ call: 'onerror', error })
-  }
+  };
+
+  self.onerror = (a, b, c, d, error) =>
+    self.postMessage({ call: 'onerror', error });
+
+  self.onunhandledrejection = error =>
+    self.postMessage({ call: 'onerror', error: error.reason });
 };
 
-self.onerror = (a, b, c, d, error) =>
-  self.postMessage({ call: 'onerror', error });
-
-self.onunhandledrejection = error =>
-  self.postMessage({ call: 'onerror', error: error.reason });
+if (!isMain$1) {
+  install(self);
+}
 
 class Shared32Array {
   constructor (length) {
@@ -289,7 +306,7 @@ class Shared32Array {
   }
 }
 
-console.log('buffer service running');
+const isMain$2 = typeof window !== 'undefined';
 
 const GC_THRESHOLD = 20 * 1000;
 
@@ -307,27 +324,42 @@ const garbageCollect = match => {
   return true
 };
 
-self.methods = {
-  getBuffer: (checksum, size, channels = 2) => {
-    const id = (checksum + size + channels).toString();
-    let buffer = buffers.get(id);
-    // console.log(id + ' buffer found:', !!buffer)
-    // console.log([...buffers])
-    // setTimeout(garbageCollect, 5*1000)
-    if (buffer) {
-      buffer.createdNow = false;
+const BufferService = {
+  methods: {
+    getBuffer: (checksum, size, channels = 2) => {
+      const id = (checksum + size + channels).toString();
+      let buffer = buffers.get(id);
+      // console.log(id + ' buffer found:', !!buffer)
+      // console.log([...buffers])
+      // setTimeout(garbageCollect, 5*1000)
+      if (buffer) {
+        buffer.createdNow = false;
+        buffer.accessedAt = performance.now();
+        return buffer
+      }
+      buffer = Array.from(Array(channels), () => new Shared32Array(size));
+      buffer.createdNow = true;
       buffer.accessedAt = performance.now();
+      buffer.checksum = checksum;
+      buffers.set(id, buffer);
       return buffer
-    }
-    buffer = Array.from(Array(channels), () => new Shared32Array(size));
-    buffer.createdNow = true;
-    buffer.accessedAt = performance.now();
-    buffer.checksum = checksum;
-    buffers.set(id, buffer);
-    return buffer
-  },
+    },
 
-  clear: match => garbageCollect(match)
+    clear: match => garbageCollect(match)
+  },
+  postMessage (data) {
+    BufferService.worker.onmessage({ data });
+  },
+  worker: {
+    postMessage (data) {
+      BufferService.onmessage({ data: { ackId: -999999, message: data } });
+    }
+  }
 };
 
+if (isMain$2) {
+  install(BufferService);
+  window['main:buffer-service'] = BufferService;
+  console.log('buffer service running');
+}
 // setInterval(garbageCollect, GC_INTERVAL)
