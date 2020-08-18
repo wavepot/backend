@@ -1,13 +1,19 @@
-const fs_constants = require('fs').constants
-const fs = require('fs/promises')
+require('dotenv').config()
+const fs = require('fs')
+const fsp = fs.promises
 const path = require('path')
 const express = require('express')
 const randomId = require('./random-id.js')
+const fetch = require('node-fetch')
 const morgan = require('morgan')
+const util = require('util')
+const pipeline = util.promisify(require('stream').pipeline)
 
-const env = process.env.NODE_ENV ?? 'production'
+const Env = process.env
+const env = Env.NODE_ENV ?? 'production'
 const PUBLIC_PATH = path.join(__dirname, 'public')
 const PROJECTS_PATH = path.join(__dirname, 'projects', env)
+const CACHE_PATH = path.join(__dirname, 'cache', env)
 const SPA_PATH = path.join(PUBLIC_PATH, 'index.html')
 
 const app = module.exports = express()
@@ -29,18 +35,51 @@ app.get('/recent', async (req, res, next) => {
   const dir = PROJECTS_PATH
 
   const projects = (await Promise.all(
-    (await fs.readdir(dir)).map(async project => {
+    (await fsp.readdir(dir)).map(async project => {
       const projectDir = path.join(dir, project)
       return Promise.all(
-        (await fs.readdir(projectDir))
+        (await fsp.readdir(projectDir))
           .map(async id =>
-            [project + '/' + id, await fs.stat(path.join(projectDir, id))]
+            [project + '/' + id, await fsp.stat(path.join(projectDir, id))]
           ))})))
     .flat()
     .sort((b, a) => a[1].ctime - b[1].ctime)
     .map(([name]) => name)
 
   res.json({ projects })
+})
+
+// fetch proxy with caching
+const cacheStatic = express.static(CACHE_PATH)
+app.get('/fetch', async (req, res, next) => {
+  const url = req.query.url
+  const slug = url.replace(/[^a-z0-9]/gi, '-')
+  req.url = '/' + slug
+  cacheStatic(req, res, async () => {
+    try {
+      let response
+
+      const Url = new URL(url)
+      if (Url.protocol === 'freesound:') {
+        const id = Url.pathname
+        const sound = await fetch(`https://freesound.org/apiv2/sounds/${id}/?fields=previews&token=${Env.FREESOUND_API_TOKEN}`)
+        if (!sound.ok) throw new Error(`unexpected response ${sound.statusText}`)
+        const json = await sound.json()
+        response = await fetch(json.previews['preview-lq-ogg'] + '?token=' + Env.FREESOUND_API_TOKEN)
+      } else {
+        response = await fetch(url)
+      }
+
+      if (!response.ok) throw new Error(`unexpected response ${response.statusText}`)
+      await pipeline(response.body, fs.createWriteStream(path.join(CACHE_PATH, slug)))
+    } catch (error) {
+      console.error(error)
+      res.status(500)
+      res.end()
+      return
+    }
+    cacheStatic(req, res, next)
+  })
 })
 
 app.use(express.static(PUBLIC_PATH))
@@ -58,7 +97,7 @@ app.get('/:project/:id', async (req, res, next) => {
   }
 
   try {
-    await fs.access(targetProjectPath, fs_constants.F_OK)
+    await fsp.access(targetProjectPath, fs.constants.F_OK)
   } catch (err) {
     console.error(err)
     res.status(404)
@@ -88,9 +127,9 @@ app.post('/:project', async (req, res) => {
   }
 
   try {
-    await fs.access(targetProjectPath, fs_constants.F_OK)
+    await fsp.access(targetProjectPath, fs.constants.F_OK)
   } catch (err) {
-    await fs.mkdir(targetProjectPath, { recursive: true })
+    await fsp.mkdir(targetProjectPath, { recursive: true })
   }
 
   const generatedId = randomId(4)
@@ -103,7 +142,7 @@ app.post('/:project', async (req, res) => {
   }
 
   try {
-    await fs.writeFile(targetFilePath, req.body)
+    await fsp.writeFile(targetFilePath, req.body)
   } catch (err) {
     console.error(err)
     res.status(500)

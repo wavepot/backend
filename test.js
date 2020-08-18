@@ -8,7 +8,7 @@ const app = require('./app.js')
 describe('routes', () => {
   let generatedId
 
-  it('should post a project', () =>
+  it('POST /<foo> -- should post a project', () =>
     chai.request(app)
       .post('/foo')
       .send({
@@ -25,7 +25,7 @@ describe('routes', () => {
         generatedId = res.body.generatedId
       }))
 
-  it('should fetch that project by id', () =>
+  it('GET /<foo>/<id> -- should fetch that project by id', () =>
     chai.request(app)
       .get('/foo/' + generatedId)
       .set('Accept', 'application/json')
@@ -34,5 +34,26 @@ describe('routes', () => {
         expect(res).to.be.json
         expect(res).to.have.header('Content-Type', /json/)
         expect(res.body.files).to.be.an('array')
+      }))
+
+  it('GET /fetch?url=http://some-remote-url -- fetch proxy should succeed', () =>
+    chai.request(app)
+      .get('/fetch?url=https://google.com')
+      .then(res => {
+        expect(res).to.have.status(200)
+      }))
+
+  it('GET /fetch?url=invalid -- fetch proxy should fail', () =>
+    chai.request(app)
+      .get('/fetch?url=invalid')
+      .then(res => {
+        expect(res).to.have.status(500)
+      }))
+
+  it('GET /fetch?url=freesound:<sound_id> -- should fetch sound from freesound api', () =>
+    chai.request(app)
+      .get('/fetch?url=freesound:212208')
+      .then(res => {
+        expect(res).to.have.status(200)
       }))
 })

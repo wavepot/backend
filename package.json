@@ -11,8 +11,10 @@
   "author": "stagas",
   "license": "MIT",
   "dependencies": {
+    "dotenv": "^8.2.0",
     "express": "^4.17.1",
-    "morgan": "^1.10.0"
+    "morgan": "^1.10.0",
+    "node-fetch": "^2.6.0"
   },
   "devDependencies": {
     "chai": "^4.2.0",
