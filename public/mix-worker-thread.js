@@ -381,6 +381,7 @@ var atomic = (innerFn, { recentOnly = false, timeout = 5000 } = {}) => {
   };
 
   atomicWrapperFn.innerFn = innerFn;
+  atomicWrapperFn.setTimeout = ms => { timeout = ms; };
 
   return atomicWrapperFn
 };
@@ -462,6 +463,8 @@ var Hyper = ({
     const context = { ...parent, parent };
 
     const fn = atomic(async (...args) => {
+      fn.setTimeout(5000);
+
       if (parent === top) mergeDown(fn, ...args);
 
       const fns = args
@@ -501,7 +504,7 @@ var Hyper = ({
       }
 
       mergeUp(fn, lastSiblingHyperFn);
-    }, { recentOnly: true });
+    }, { recentOnly: true, timeout: 60000 });
 
     Object.defineProperties(fn, desc);
     mergeDown(fn, context);
