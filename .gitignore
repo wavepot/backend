@@ -1,7 +1,6 @@
 .env
 node_modules
-projects/development
-projects/test
-cache/development
-cache/test
+projects/*/*
+cache/*/*
 public/samples
+!**/*/.gitkeep
