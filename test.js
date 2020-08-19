@@ -36,6 +36,18 @@ describe('routes', () => {
         expect(res.body.files).to.be.an('array')
       }))
 
+  it('GET /recent -- should get a recent project list', () =>
+    chai.request(app)
+      .get('/recent')
+      .set('Accept', 'application/json')
+      .then(res => {
+        expect(res).to.have.status(200)
+        expect(res).to.be.json
+        expect(res).to.have.header('Content-Type', /json/)
+        expect(res.body.projects).to.be.an('array')
+        expect(res.body.projects[0]).to.include('foo/')
+      }))
+
   it('GET /fetch?url=http://some-remote-url -- fetch proxy should succeed', () =>
     chai.request(app)
       .get('/fetch?url=https://google.com')
