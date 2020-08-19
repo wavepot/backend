@@ -23,14 +23,32 @@ class SafeDynamicWorker {
   }
 
   markAsSafe () {
+    const prevSafe = this.safe;
     this.safe = this.worker;
+    if (prevSafe && prevSafe !== this.safe) {
+      setTimeout(() => {
+        try {
+          console.warn('safe: terminating previous safe worker');
+          prevSafe.terminate();
+        } catch (error) {
+          console.error(error);
+        }
+      // give some time to finish operations
+      // before forcefully terminating
+      }, 5000);
+    }
   }
 
   reviveSafe (err) {
     if (this.worker && this.worker.state !== 'failed') {
       this.worker.state = 'failed';
       this.unbindListeners();
-      try { this.worker.terminate(); } catch {}
+      try {
+        console.log('failed: terminating worker');
+        this.worker.terminate();
+      } catch (error) {
+        console.error(error);
+      }
       this.worker = null;
     }
     if (this.safe && this.worker !== this.safe && this.safe.state !== 'failed') {
@@ -62,7 +80,12 @@ class SafeDynamicWorker {
     if (this.worker) {
       this.unbindListeners();
       if (this.worker !== this.safe) {
-        try { this.worker.terminate(); } catch {}
+        try {
+          console.log('update: terminating previous worker');
+          this.worker.terminate();
+        } catch (error) {
+          console.error(error);
+        }
       }
     }
     this.worker = new Worker(this.url, { type: 'module' });
@@ -125,6 +148,9 @@ rpc.clear = () => rpcs.clear();
 rpc.clearHanging = error => { [...callbacks.values()].forEach(fn => fn.reject(error)), callbacks.clear(); };
 rpc.clearAll = () => (rpc.clear(), rpc.clearHanging());
 
+const workers = self.workers ?? new Map;
+if (!isMain) self.workers = workers;
+
 class Rpc {
   constructor (url) {
     this.url = url;
@@ -135,19 +161,22 @@ class Rpc {
     if (new URL(url).protocol === 'main:') {
       this.worker = window[url].worker;
     } else {
-      this.worker = new SafeDynamicWorker(url);
-    }
-
-    this.worker.onmessage = ({ data }) => {
-      if (!data.call) return
-      if (!(data.call in this)) {
-        throw new ReferenceError('Rpc receive method not found: ' + data.call)
+      this.worker = workers.get(url);
+      if (!this.worker) {
+        this.worker = new SafeDynamicWorker(url);
+        workers.set(url, this.worker);
+        this.worker.onmessage = ({ data }) => {
+          if (!data.call) return
+          if (!(data.call in this)) {
+            throw new ReferenceError('Rpc receive method not found: ' + data.call)
+          }
+          this[data.call](data);
+        };
+        this.worker.onmessageerror = error => rpc.onmessageerror?.(error, url);
+        this.worker.onerror = error => rpc.onerror?.(error, url);
+        this.worker.onfail = fail => rpc.onfail?.(fail, url);
       }
-      this[data.call](data);
-    };
-    this.worker.onmessageerror = error => rpc.onmessageerror?.(error, url);
-    this.worker.onerror = error => rpc.onerror?.(error, url);
-    this.worker.onfail = fail => rpc.onfail?.(fail, url);
+    }
   }
 
   async proxyRpc ({ url, callbackId, method, args }) {
