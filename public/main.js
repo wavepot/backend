@@ -6425,23 +6425,28 @@ class Rpc {
     // main thread that interface as RPC workers
     if (new URL(url).protocol === 'main:') {
       this.worker = window[url].worker;
+      this.bindListeners();
     } else {
       this.worker = workers.get(url);
       if (!this.worker) {
         this.worker = new SafeDynamicWorker(url);
         workers.set(url, this.worker);
-        this.worker.onmessage = ({ data }) => {
-          if (!data.call) return
-          if (!(data.call in this)) {
-            throw new ReferenceError('Rpc receive method not found: ' + data.call)
-          }
-          this[data.call](data);
-        };
-        this.worker.onmessageerror = error => rpc.onmessageerror?.(error, url);
-        this.worker.onerror = error => rpc.onerror?.(error, url);
-        this.worker.onfail = fail => rpc.onfail?.(fail, url);
+        this.bindListeners();
       }
     }
+  }
+
+  bindListeners () {
+    this.worker.onmessage = ({ data }) => {
+      if (!data.call) return
+      if (!(data.call in this)) {
+        throw new ReferenceError('Rpc receive method not found: ' + data.call)
+      }
+      this[data.call](data);
+    };
+    this.worker.onmessageerror = error => rpc.onmessageerror?.(error, url);
+    this.worker.onerror = error => rpc.onerror?.(error, url);
+    this.worker.onfail = fail => rpc.onfail?.(fail, url);
   }
 
   async proxyRpc ({ url, callbackId, method, args }) {
@@ -7400,6 +7405,9 @@ var slug = s => s
   .replace(/[^a-z0-9-_]/gi, ' ').trim()
   .replace(/ {1,}/gi, '-').trim();
 
+// hacky way to switch api urls from dev to prod
+const API_URL = location.port.length === 4 ? 'http://localhost:3000' : location.origin;
+
 var SampleService = audio => {
   const samples = new Map;
 
@@ -7407,7 +7415,7 @@ var SampleService = audio => {
     methods: {
       fetchSample: async url => {
         if (url[0] !== '/') {
-          url = location.origin + '/fetch?url=' + encodeURIComponent(url);
+          url = API_URL + '/fetch?url=' + encodeURIComponent(url);
         } else {
           url = new URL(url, location.href).href;
         }
@@ -7471,7 +7479,7 @@ var Audio = () => {
 };
 
 // hacky way to switch api urls from dev to prod
-const API_URL = location.port.length === 4 ? 'http://localhost:3000' : location.origin;
+const API_URL$1 = location.port.length === 4 ? 'http://localhost:3000' : location.origin;
 
 const main = async () => {
   await DynamicCache.install();
@@ -7501,7 +7509,7 @@ const main = async () => {
     return json
   };
 
-  fetchJson(API_URL + '/recent').then(json => {
+  fetchJson(API_URL$1 + '/recent').then(json => {
     recent.innerHTML = json.projects.map(p =>
       `<a href="${location.origin}/${p}">${location.origin}/${p}</a>`
     ).join('<br>');
@@ -7516,7 +7524,15 @@ const main = async () => {
   const targetPathParts = location.pathname.split('/');
   if (targetPathParts.length === 3) {
 [...document.querySelectorAll('pre')].forEach(node => node.parentNode.removeChild(node));
-    const json = await fetchJson(API_URL + location.pathname);
+    const json = await fetchJson(API_URL$1 + location.pathname);
+
+    // try to put main.js first
+    const mainFile = json.files.find(file => file.title === 'main.js');
+    if (mainFile) {
+      json.files.splice(json.files.indexOf(mainFile), 1);
+      json.files.unshift(mainFile);
+    }
+
     json.files.forEach(file => createNode(file));
     projectname.textContent = json.projectName;
   }
@@ -7578,7 +7594,7 @@ const main = async () => {
       }
     });
     console.log(files);
-    const res = await fetch(API_URL + '/' + projectName, {
+    const res = await fetch(API_URL$1 + '/' + projectName, {
       method: 'POST',
       mode: 'cors',
       headers: {
