@@ -207,7 +207,7 @@ class Rpc {
     const cid = ++callbackId;
 
     const promise = Promise.race([
-      new Promise((_, reject) => setTimeout(reject, 5000, new Error('rpc: Timed out.'))),
+      new Promise((_, reject) => setTimeout(reject, 30000, new Error('rpc: Timed out.'))),
       new Promise((resolve, reject) =>
         callbacks.set(cid, { resolve, reject }))
     ]);
@@ -248,7 +248,7 @@ class RpcProxy {
     const cid = ++callbackId;
 
     const promise = Promise.race([
-      new Promise((_, reject) => setTimeout(reject, 5000, new Error('rpc: Timed out.'))),
+      new Promise((_, reject) => setTimeout(reject, 30000, new Error('rpc: Timed out.'))),
       new Promise((resolve, reject) =>
         callbacks.set(cid, { resolve, reject }))
     ]);
@@ -1333,7 +1333,7 @@ const THREAD_URL = new URL('mix-worker-thread.js', import.meta.url).href;
 const mixWorker = (url, context) => {
   const rpcUrl = getRpcUrl(url);
   return Promise.race([
-    new Promise((resolve, reject) => setTimeout(reject, 5000, new Error('mixWorker: Timed out'))),
+    new Promise((resolve, reject) => setTimeout(reject, 30000, new Error('mixWorker: Timed out'))),
     rpc(rpcUrl, 'render', [url, context.toJSON?.() ?? context]).then(result => {
       if (isMain$3) rpc.markAsSafe(rpcUrl);
       return result
