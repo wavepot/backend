@@ -35,7 +35,9 @@ app.get('/recent', async (req, res, next) => {
   const dir = PROJECTS_PATH
 
   const projects = (await Promise.all(
-    (await fsp.readdir(dir)).map(async project => {
+    (await fsp.readdir(dir))
+    .filter(name => !name.startsWith('.'))
+    .map(async project => {
       const projectDir = path.join(dir, project)
       return Promise.all(
         (await fsp.readdir(projectDir))
