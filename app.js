@@ -7,13 +7,18 @@ const randomId = require('./random-id.js')
 const fetch = require('node-fetch')
 const morgan = require('morgan')
 const util = require('util')
+const exec = util.promisify(require('child_process').exec)
 const pipeline = util.promisify(require('stream').pipeline)
+const puppeteer = require('puppeteer')
+const ytdl = require('ytdl-core')
+const waitFileExists = require('./wait-file-exists.js')
 
 const Env = process.env
 const env = Env.NODE_ENV ?? 'production'
 const PUBLIC_PATH = path.join(__dirname, 'public')
 const PROJECTS_PATH = path.join(__dirname, 'projects', env)
 const CACHE_PATH = path.join(__dirname, 'cache', env)
+const META_PATH = path.join(__dirname, 'meta', env)
 const SPA_PATH = path.join(PUBLIC_PATH, 'index.html')
 
 const app = module.exports = express()
@@ -84,7 +89,8 @@ app.get('/fetch', async (req, res, next) => {
   })
 })
 
-app.use(express.static(PUBLIC_PATH))
+app.use(express.static(PUBLIC_PATH, { maxAge: 1000 * 60 * 60 * 24 }))
+app.use(express.static(META_PATH, { maxAge: 1000 * 60 * 60 * 24 * 30 * 6 }))
 
 app.get('/:project/:id', async (req, res, next) => {
   if (!req.accepts('html')) return next()
@@ -158,6 +164,34 @@ app.post('/:project', async (req, res) => {
     generatedId,
     success: true
   })
+
+  if (env === 'test') return // TODO: figure how to test below
+
+  console.time('meta')
+  const title = [project, generatedId].join('/')
+  console.log('[meta] generating for:', title)
+
+  const url = `http://localhost:${port}/meta.html?waveform=${title}`
+  const expectedFile = `${META_PATH}/${title.replace(/[^a-z0-9]/gi, '_')}.webp`
+
+  console.log('[meta] starting browser...')
+  const browser = await puppeteer.launch()
+  const page = await browser.newPage()
+
+  const client = await page.target().createCDPSession()
+  await client.send('Page.setDownloadBehavior', {
+    behavior: 'allow',
+    downloadPath: META_PATH,
+  })
+
+  console.log('[meta] opening url: ', url)
+  await page.goto(url)
+
+  await waitFileExists(expectedFile)
+  console.log('[meta] created:', expectedFile)
+
+  await browser.close()
+  console.timeEnd('meta')
 })
 
 if (!module.parent) {

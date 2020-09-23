@@ -4,7 +4,7 @@
   "description": "wavepot backend",
   "main": "index.js",
   "scripts": {
-    "dev": "NODE_ENV=development nodemon --ignore projects app.js",
+    "dev": "NODE_ENV=development nodemon --ignore projects --ignore public --ignore cache --ignore meta app.js",
     "test": "NODE_ENV=test mocha test.js",
     "test:watch": "NODE_ENV=test mocha test.js --watch --watch-ignore=projects,node_modules,.git"
   },
@@ -14,7 +14,9 @@
     "dotenv": "^8.2.0",
     "express": "^4.17.1",
     "morgan": "^1.10.0",
-    "node-fetch": "^2.6.0"
+    "node-fetch": "^2.6.0",
+    "puppeteer": "^5.2.1",
+    "ytdl-core": "^3.2.2"
   },
   "devDependencies": {
     "chai": "^4.2.0",
