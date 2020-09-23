@@ -57,10 +57,17 @@ app.get('/recent', async (req, res, next) => {
 })
 
 // fetch proxy with caching
-const cacheStatic = express.static(CACHE_PATH)
+const setHeaders = (res, path, stat) => {
+  if (res.__mimetype) {
+    res.set('content-type', res.__mimetype)
+  }
+}
+const cacheStatic = express.static(CACHE_PATH, { maxAge: 1000 * 60 * 60 * 24 * 30 * 6, setHeaders })
 app.get('/fetch', async (req, res, next) => {
   const url = req.query.url
   const slug = url.replace(/[^a-z0-9]/gi, '-')
+  const outFilePath = path.join(CACHE_PATH, slug)
+
   req.url = '/' + slug
   cacheStatic(req, res, async () => {
     try {
@@ -119,7 +126,8 @@ app.get('/:project/:id', async (req, res, next) => {
 app.use(express.static(PROJECTS_PATH, {
   setHeaders (res, path, stat) {
     res.set('Content-Type', 'application/json')
-  }
+  },
+  maxAge: 1000 * 60 * 60 * 24 * 30 * 6
 }))
 
 app.use(express.text({ type: 'application/json' }))
