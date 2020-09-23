@@ -1,0 +1,42 @@
+{
+  "title": "303",
+  "tracks": [
+    {
+      "title": "303/track.js",
+      "value": "import DiodeFilter from './diodefilter.js'\nimport Wavetable from './wavetable.js'\n\nconst clip = (x, amt=.5) => x / ((amt || 1) + Math.abs(x))\n\nconst slide = (c, measure, speed, seq) => {\n  var pos = (c.b / measure / 2) % seq.length;\n  var now = pos | 0;\n  var next = now + 1;\n  var alpha = pos - now;\n  if (next == seq.length) next = 1;\n  return seq[now] \n    + ((seq[next] - seq[now]) * Math.pow(alpha, speed));\n}\n\nexport default async c => {\n  const lpf = new DiodeFilter()\n  const saw = await Wavetable(c, {\n    osc: './ramp.js',\n    alias: false \n  })\n  let x = 0.0\n  return (c, { melody = [\n    50,40,61,70,\n    // 50,150,61,70,\n    // 50,150,61,70,\n    // 50,150,61,170,\n  ] }) => {\n    x = saw(c, { \n        hz: slide(c, 1/4, 6, melody)  \n        //[(c.b)%4|0] * (1)\n      })\n      * Math.exp(-((c.b*2)%1) * 2)\n      \n    x = lpf\n      .hpf(0.00021)\n      .cut(Math.max(0.071,\n          -0.12\n          + (Math.sin(c.b*.25*Math.PI*2)/3+1) *\n          0.15\n          //-0.06\n        + (0.021 * Math.sin(c.b*3/9*Math.PI*2))\n        + (Math.exp(-((c.b*2)%1) * 1) * 0.06)\n        + ((1-Math.exp(-((c.b)%1) * 1)) * 0.03)\n      ))\n      .res(0.375)\n      .run(x)\n    return clip(x*1.3,.12)*1\n  }\n}",
+      "type": "loop"
+    }
+  ],
+  "modules": [
+    {
+      "title": "303/saw.js",
+      "value": "export default (c, { hz = 50 }) =>\n  1 - 2 * (c.s % (1 / hz)) * hz",
+      "type": "shot"
+    },
+    {
+      "title": "303/ramp.js",
+      "value": "export default (c, { hz = 50 }) =>\n  2 * (c.s % (1 / hz)) * hz - 1",
+      "type": "shot"
+    },
+    {
+      "title": "303/sqr.js",
+      "value": "export default (c, { hz = 50 }) =>\n  (c.s*hz % 1/hz < 1/hz/2) * 2 - 1",
+      "type": "shot"
+    },
+    {
+      "title": "303/pulse.js",
+      "value": "export default (c, { hz = 50, width = 1.05 }) =>\n  (c.s*hz % 1/hz < 1/hz/2*width) * 2 - 1",
+      "type": "shot"
+    },
+    {
+      "title": "303/diodefilter.js",
+      "value": "const clip = (x, amt=.5) => x / ((amt || 1) + Math.abs(x))\n\nexport default DiodeFilter\n\nfunction DiodeFilter(){\n  if (!(this instanceof DiodeFilter)) return new DiodeFilter();\n  this.k = 0;\n  this.A = 0;\n  this.z = new Float32Array([0,0,0,0,0]);\n  this.ah;\n  this.bh;\n  this.fc;\n  this.res(0);\n  this.hpf(0.5);\n  this.cut(0.5);\n}\n\nDiodeFilter.prototype.hpf = function(fc){\n  var K = fc * Math.PI;\n  this.ah = (K - 2) / (K + 2);\n  this.bh = 2 / (K + 2);\n  return this;\n};\n\nDiodeFilter.prototype.reset = function(){\n  if (this.k < 17) this.z = new Float32Array([0,0,0,0,0]);\n};\n\nDiodeFilter.prototype.res = function(q){\n  this.k = 20 * q;\n  this.A = 1 + 0.5 * this.k;\n  return this;\n};\n\nDiodeFilter.prototype.cut = function(cutoff){\n  cutoff = (cutoff * cutoff);\n  this.fc = cutoff <= 0\n    ? 0.02\n    : (cutoff >= 1.0 ? 0.999 : cutoff);\n  return this;\n};\n\nDiodeFilter.prototype.run = function(x){\n  var a = Math.PI * this.fc;\n  a = 2 * Math.tan(0.5*a); // dewarping, not required with 2x oversampling\n  var ainv = 1 / a;\n  var a2 = a*a;\n  var b = 2*a + 1;\n  var b2 = b*b;\n  var c = 1 / (2*a2*a2 - 4*a2*b2 + b2*b2);\n  var g0 = 2*a2*a2*c;\n  var g = g0 * this.bh;\n\n  // current state\n  var s0 = (a2*a*this.z[0] + a2*b*this.z[1] + this.z[2]*(b2 - 2*a2)*a + this.z[3]*(b2 - 3*a2)*b) * c;\n  var s = this.bh*s0 - this.z[4];\n\n  // solve feedback loop (linear)\n  var y5 = (g*x + s) / (1 + g*this.k);\n\n  // input clipping\n  var y0 = clip(x - this.k*y5);\n  y5 = g*y0 + s;\n\n  // compute integrator outputs\n  var y4 = g0*y0 + s0;\n  var y3 = (b*y4 - this.z[3]) * ainv;\n  var y2 = (b*y3 - a*y4 - this.z[2]) * ainv;\n  var y1 = (b*y2 - a*y3 - this.z[1]) * ainv;\n\n  // update filter state\n  this.z[0] += 4*a*(y0 - y1 + y2);\n  this.z[1] += 2*a*(y1 - 2*y2 + y3);\n  this.z[2] += 2*a*(y2 - 2*y3 + y4);\n  this.z[3] += 2*a*(y3 - 2*y4);\n  this.z[4] = this.bh*y4 + this.ah*y5;\n\n  return this.A*y4;\n};",
+      "type": "shot"
+    },
+    {
+      "title": "303/wavetable.js",
+      "value": "export default async (c, {\n  osc='./saw.js',\n  len=1024,\n  sync='sr',\n  alias=false\n}=c) => {\n  let coeff = len/c[sync]\n  let pos = 0.0\n  let index = 0\n  let alpha = 0.0\n  let next = 0.0\n  let curr = 0.0\n  let buffer = await c.buf({len,ch:1})\n  let table = (await c.src(osc,{\n    n:0,\n    buffer,\n    ig:sync[0],\n    hz:c[sync]/len\n  }))[0]\n  if (alias) {\n    return (c,{hz=64}=c) => {\n      pos += hz*coeff \n      pos %= len\n      index = Math.floor(pos)\n      alpha = pos-index\n      next = table[index+1]??table[0]\n      curr = table[index]\n      return curr+(next-curr)*alpha\n    }\n  } else {\n    return (c,{hz=64}=c) => {\n      pos += hz*coeff\n      pos %= len\n      index = Math.floor(pos)\n      return table[index]\n    }\n  }\n}",
+      "type": "shot"
+    }
+  ]
+}

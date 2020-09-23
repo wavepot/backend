@@ -1,0 +1,52 @@
+{
+  "title": "piano",
+  "tracks": [
+    {
+      "title": "piano/track.js",
+      "value": "import tri from './tri.js'\nimport Lowpass from './lowpass.js'\nexport default async c => {\n  const lp = await Lowpass(c)\n  return (c, { hz = 600, chord = [16/9,32/27,4/3] }=c) => {\n    let x = \n      tc(c, { hz })\n    + chord\n      .map(ratio => tc(c, { hz: hz * ratio }))\n      .reduce((p, n) => p + n, 0)\n\n    x = lp({ x }, { a: .25 })\n    \n    let h = \n      tri(c, { hz: 800 })\n    + tri(c, { hz: 505 })\n    \n    h = h * Math.exp(-(c.k)*60)\n    x += h\n\n    return x/(1+chord.length) * Math.exp(-(c.k) * 5) * Math.min(1,c.p/10)\n  }\n}\n\nconst tc = (c, { hz }) => {\n  return (\n    tri(c, { hz }) \n  + tri(c, { hz: hz*1.0015 }) \n  + tri(c, { hz: hz*1.0035 })\n  ) / 3\n}",
+      "type": "shot"
+    }
+  ],
+  "modules": [
+    {
+      "title": "piano/saw.js",
+      "value": "export default (c, { hz = 50 }) =>\n  1 - 2 * (c.s % (1 / hz)) * hz",
+      "type": "shot"
+    },
+    {
+      "title": "piano/sin.js",
+      "value": "export default (c, { hz = 200 }) => \n  Math.sin(c.s * hz * 2 * Math.PI)",
+      "type": "shot"
+    },
+    {
+      "title": "piano/lowpass.js",
+      "value": "export default async c => {\n  let y = 0\n  return (c, { a = .5 }) =>\n    y += (c.x - y) * a\n}",
+      "type": "shot"
+    },
+    {
+      "title": "piano/wavetable.js",
+      "value": "export default async (c, {\n  osc='./saw.js',\n  len=1024,\n  sync='sr',\n  alias=false\n}=c) => {\n  let coeff = len/c[sync]\n  let pos = 0.0\n  let index = 0\n  let alpha = 0.0\n  let next = 0.0\n  let curr = 0.0\n  let buffer = await c.buf({len,ch:1})\n  let table = (await c.src(osc,{\n    n:0,\n    buffer,\n    ig:sync[0],\n    hz:c[sync]/len\n  }))[0]\n  let fn\n  if (alias) {\n    fn = (c,{hz=64}=c) => {\n      index = Math.floor(pos)\n      alpha = pos-index\n      next = table[index+1]??table[0]\n      curr = table[index]\n      pos += hz*coeff \n      pos %= len\n      return curr+(next-curr)*alpha\n    }\n  } else {\n    fn = (c,{hz=64}=c) => {\n      index = Math.floor(pos)\n      pos += hz*coeff\n      pos %= len\n      return table[index]\n    }\n  }\n  fn.setPhase = x => pos = x\n  return fn\n}",
+      "type": "shot"
+    },
+    {
+      "title": "piano/noise.js",
+      "value": "export default (c, { seed = 123456 }) => {\n  let x = Math.sin(seed+c.p)*100000\n  return (x - Math.floor(x)) * 2 - 1\n}",
+      "type": "shot"
+    },
+    {
+      "title": "piano/pulse.js",
+      "value": "export default (c, { hz = 50, width = 1.05 }) =>\n  (c.s*hz % 1/hz < 1/hz/2*width) * 2 - 1",
+      "type": "shot"
+    },
+    {
+      "title": "piano/biquad.js",
+      "value": "const freqToFloat = ({ sampleRate }, freq = 500) => \n  freq / (sampleRate / 2)\n\nexport default async () => {\n  let x = 0.0, x1 = 0.0, x2 = 0.0\n  let y = 0.0, y1 = 0.0, y2 = 0.0\n\n  return (c, [b0, b1, b2, a1, a2]) => {\n    x = c.x\n\n    y = b0*x + b1*x1 + b2*x2 - a1*y1 - a2*y2\n\n    x2 = x1\n    x1 = x\n\n    y2 = y1\n    y1 = y\n\n    return y\n  }\n}\n\nexport const bandpass = ({ sampleRate }, { cut = 1000, res = .5 } = {}) => {\n  cut = freqToFloat({ sampleRate }, cut)\n\n  let b0 = 0.0, b1 = 0.0, b2 = 0.0\n  let a1 = 0.0, a2 = 0.0\n\n  if (cut > 0 && cut < 1) {\n    if (res > 0) {\n      const u = Math.PI * cut\n      const a = Math.sin(u) / (2 * res)\n      const k = Math.cos(u)\n      const ia0 = 1 / (1 + a)\n\n      b0 = a * ia0\n      b1 = 0\n      b2 = -a * ia0\n      a1 = -2 * k * ia0\n      a2 = (1 - a) * ia0\n    } else {\n      b0 = b1 = b2 = a1 = a2 = 0\n    }\n  } else {\n    b0 = b1 = b2 = a1 = a2 = 0\n  }\n\n  return [b0, b1, b2, a1, a2]\n}\n\nexport const highpass = ({ sampleRate }, { cut = 1000, res = .5 } = {}) => {\n  cut = freqToFloat({ sampleRate }, cut)\n\n  let b0 = 0.0, b1 = 0.0, b2 = 0.0\n  let a1 = 0.0, a2 = 0.0\n\n  if (cut >= 1) {\n    b0 = b1 = b2 = a1 = a2 = 0\n  } else if (cut <= 0) {\n    b0 = 1\n    b1 = b2 = a1 = a2 = 0\n  } else {\n    res = Math.max(0, res)\n    const g = Math.pow(10.0, 0.05 * res)\n    const d = Math.sqrt((4 - Math.sqrt(16 - 16 / (g * g))) * 0.5)\n\n    const u = Math.PI * cut\n    const s = 0.5 * d * Math.sin(u)\n    const b = 0.5 * (1 - s) / (1 + s)\n    const k = (0.5 + b) * Math.cos(u)\n    const a = 0.25 * (0.5 + b + k)\n\n    b0 = 2 * a\n    b1 = -4 * a\n    b2 = b0\n    a1 = 2 * -k\n    a2 = 2 * b\n  }\n\n  return [b0, b1, b2, a1, a2]\n}",
+      "type": "shot"
+    },
+    {
+      "title": "piano/tri.js",
+      "value": "export default (c, { hz = 200 }) =>\n  Math.abs(1 - (2 * c.s * hz) % 2) * 2 - 1",
+      "type": "shot"
+    }
+  ]
+}
