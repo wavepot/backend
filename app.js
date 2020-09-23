@@ -80,6 +80,17 @@ app.get('/fetch', async (req, res, next) => {
         if (!sound.ok) throw new Error(`unexpected response ${sound.statusText}`)
         const json = await sound.json()
         response = await fetch(json.previews['preview-lq-ogg'] + '?token=' + Env.FREESOUND_API_TOKEN)
+      } else if (Url.protocol === 'youtube:') {
+        const id = Url.pathname
+        const info = await ytdl.getInfo(`https://www.youtube.com/watch?v=${id}`)
+        const format = ytdl.chooseFormat(info.formats, { quality: 'lowestvideo' })
+        const bytesPerSecond = parseInt(format.contentLength/(format.approxDurationMs/1000))
+        const start = 5
+        const end = 7
+        const duration = end-start
+        const { stdout } = await exec(`ffmpeg -ss ${start} -i ${'"'+format.url.replace(/(["\s'$`\\])/g,'\\$1')+'"'} -t ${duration} -f ${format.container} -c copy ${outFilePath}`)
+        console.log(stdout)
+        return cacheStatic(req, res, next)
       } else {
         response = await fetch(url)
       }
