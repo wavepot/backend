@@ -1,6 +1,8 @@
 const dispatch = listeners => event =>
   listeners.forEach(fn => fn(event));
 
+const PAUSE_TIMEOUT = 10 * 1000; // 10 secs
+
 class SafeDynamicWorker {
   constructor (url) {
     this.url = url;
@@ -14,6 +16,8 @@ class SafeDynamicWorker {
       onmessageerror: [],
       onfail: []
     };
+
+    this.pause = this.pause.bind(this);
 
     this.updateInstance();
   }
@@ -68,6 +72,9 @@ class SafeDynamicWorker {
   }
 
   examineAck ({ data }) {
+    clearTimeout(this.timeout);
+    this.timeout = setTimeout(this.pause, PAUSE_TIMEOUT);
+
     if (data.ack) {
       this.pendingAckMessages =
       this.pendingAckMessages
@@ -91,6 +98,30 @@ class SafeDynamicWorker {
     this.worker = new Worker(this.url, { type: 'module' });
     this.bindListeners();
     this.retryMessages();
+
+    this.paused = false;
+    clearTimeout(this.timeout);
+    this.timeout = setTimeout(this.pause, PAUSE_TIMEOUT);
+  }
+
+  pause () {
+    try {
+      if (this.worker) {
+        this.worker.terminate();
+      }
+      this.worker = null;
+    } catch {}
+
+    try {
+      if (this.safe) {
+        this.safe.terminate();
+      }
+      this.safe = null;
+    } catch {}
+
+    this.paused = true;
+    this.onpause();
+    console.log('worker paused: ', this.url);
   }
 
   bindListeners () {
@@ -106,6 +137,9 @@ class SafeDynamicWorker {
   }
 
   postMessage (message, transfer) {
+    clearTimeout(this.timeout);
+    this.timeout = setTimeout(this.pause, PAUSE_TIMEOUT);
+
     const payload = {
       ackId: ++this.ackId,
       message
@@ -144,7 +178,7 @@ const rpcs = new Map;
 
 const rpc = (url, method, args = []) => getRpc(url).rpc(method, args);
 rpc.get = url => getRpc(url);
-rpc.update = url => getRpc(url).worker.updateInstance();
+rpc.update = (url, noCreate = false) => getRpc(url, noCreate)?.worker?.updateInstance();
 rpc.markAsSafe = url => getRpc(url).worker.markAsSafe();
 rpc.clear = () => rpcs.clear();
 rpc.clearHanging = error => { [...callbacks.values()].forEach(fn => fn.reject(error)), callbacks.clear(); };
@@ -169,6 +203,8 @@ class Rpc {
         this.worker = new SafeDynamicWorker(url);
         workers.set(url, this.worker);
         this.bindListeners();
+      } else if (this.worker.paused) {
+        this.worker.updateInstance();
       }
     }
   }
@@ -181,9 +217,10 @@ class Rpc {
       }
       this[data.call](data);
     };
-    this.worker.onmessageerror = error => rpc.onmessageerror?.(error, url);
-    this.worker.onerror = error => rpc.onerror?.(error, url);
-    this.worker.onfail = fail => rpc.onfail?.(fail, url);
+    this.worker.onmessageerror = error => rpc.onmessageerror?.(error, this.url);
+    this.worker.onerror = error => rpc.onerror?.(error, this.url);
+    this.worker.onfail = fail => rpc.onfail?.(fail, this.url);
+    this.worker.onpause = () => rpcs.delete(this.url);
   }
 
   async proxyRpc ({ url, callbackId, method, args }) {
@@ -265,10 +302,13 @@ class RpcProxy {
   }
 }
 
-const getRpc = url => {
+const getRpc = (url, noCreate = false) => {
   url = new URL(url, location.href).href;
   if (isMain) {
-    if (!rpcs.has(url)) rpcs.set(url, new Rpc(url));
+    if (!rpcs.has(url)) {
+      if (noCreate) return
+      rpcs.set(url, new Rpc(url));
+    }
     return rpcs.get(url)
   } else {
     return new RpcProxy(url)
@@ -318,7 +358,6 @@ const install = self => {
         replyTo: data.message.callbackId,
         error
       });
-      // self.postMessage({ call: 'onerror', error })
     }
   };
 
@@ -527,15 +566,13 @@ var render = async (fn, context) => {
   const { buffer } = context;
   const numOfChannels = buffer.length;
 
-// console.log('N IS', context.n, context.frame)
   assertFinite(context.n);
 
   if (numOfChannels > 2) {
     throw new RangeError('unsupported number of channels [' + numOfChannels + ']')
   }
 
-  // context.prepare()
-  // context.tick()
+  context.update();
 
   let result;
   if (fn.constructor.name === 'AsyncFunction') {
@@ -549,7 +586,6 @@ var render = async (fn, context) => {
     return
   }
 
-// console.log('N IS', context.n)
   if (typeof result === 'object' && '0' in result && typeof result[0] === 'number') {
     if (numOfChannels === 1) {
       buffer[0][0] = (
@@ -564,7 +600,6 @@ var render = async (fn, context) => {
     renderStereo(fn, context);
     return context
   } else if (typeof result === 'number') {
-    // console.log('result is', result, context.toJSON())
     buffer[0][0] = assertFinite(result) / numOfChannels;
     context.tick();
     renderMono(fn, context);
@@ -1227,21 +1262,19 @@ var impulseConvolve = async (c, url, length) => {
   const id = 'kernel:' + url + ':' + c.buffer[0].length + ':' + length;
   let kernel = await c.get(id);
   if (kernel === false) {
-    console.log('processing kernel:', id);
+    // console.log('processing kernel:', id)
     kernel = convolve.fftProcessKernel(c.buffer[0].length, impulse[0]);
     await c.set(id, kernel);
-    console.log('set kernel cache:', id);
-  } else {
-    console.log('got cached kernel:', id);
+    // console.log('set kernel cache:', id)
   }
   const reverb = convolve.fftConvolution(c.buffer[0].length, kernel, impulse[0].length);
   return reverb
 };
 
-var ImpulseReverb = async (c, { url, offset = 0, length = -1 }=c) => {
+var ImpulseReverb = async (c, { url, offset = 0, length = -1, id = '' }=c) => {
   const reverb = await impulseConvolve(c, url, length);
   let tail = 0;
-  let prev = (await c.get('prev:'+url+(c.n-c.buffer[0].length)))||new Float32Array();
+  let prev = (await c.get('prev:'+id+url+(c.n-c.buffer[0].length)))||new Float32Array();
   let curr;
   let len = 0;
   let i = 0;
@@ -1254,8 +1287,62 @@ var ImpulseReverb = async (c, { url, offset = 0, length = -1 }=c) => {
     }
     tail = (curr.length - offset) - len;
     prev = curr.subarray(-tail);
-    c.set('prev:'+url+c.n, prev, 5000);
+    c.set('prev:'+id+url+c.n, prev, 5000);
     return curr.subarray(offset, offset + len)
+  }
+};
+
+var impulseConvolve$1 = async (c, url, length) => {
+  const impulse = await c.sample(url);
+  if (length > -1) {
+    impulse[0] = impulse[0].subarray(0, length);
+    impulse[1] = impulse[1].subarray(0, length);
+  }
+  const id = 'impulse-convolve-stereo:kernel:' + url + ':' + c.buffer[0].length + ':' + length;
+  let kernel = await c.get(id);
+  if (kernel === false) {
+    // console.log('processing kernel:', id)
+    kernel = [
+      convolve.fftProcessKernel(c.buffer[0].length, impulse[0]),
+      convolve.fftProcessKernel(c.buffer[0].length, impulse[1])
+    ];
+    await c.set(id, kernel);
+    // console.log('set kernel cache:', id)
+  }
+  const reverb = [
+    convolve.fftConvolution(c.buffer[0].length, kernel[0], impulse[0].length),
+    convolve.fftConvolution(c.buffer[0].length, kernel[1], impulse[0].length)
+  ];
+  return reverb
+};
+
+var ImpulseReverbStereo = async (c, { url, offset = 0, length = -1, id = '' }=c) => {
+  const reverb = await impulseConvolve$1(c, url, length);
+  let tail = 0;
+  let prev = (await c.get('impulse-reverb-stereo:prev:'+id+url+(c.n-c.buffer[0].length)))
+    ||[new Float32Array(),new Float32Array()];
+  let curr;
+  let len = 0;
+  let i = 0;
+  return c => {
+    len = c.buffer[0].length;
+    curr = [
+      reverb[0](c.buffer[0]),
+      reverb[1](c.buffer[1])
+    ];
+    // add remaining tail from previous step
+    for (i = 0; i < prev[0].length; i++) {
+      curr[0][i] += prev[0][i];
+      curr[1][i] += prev[1][i];
+    }
+    tail = (curr[0].length - offset) - len;
+    prev[0] = curr[0].subarray(-tail);
+    prev[1] = curr[1].subarray(-tail);
+    c.set('impulse-reverb-stereo:prev:'+id+url+c.n, prev, 5000);
+    return [
+      curr[0].subarray(offset, offset + len),
+      curr[1].subarray(offset, offset + len),
+    ]
   }
 };
 
@@ -1287,6 +1374,7 @@ const garbageCollect = match => {
 };
 
 const BufferService = {
+  buffers,
   methods: {
     getBuffer: (checksum, size, channels = 2) => {
       const id = (checksum + size + channels).toString();
@@ -1346,21 +1434,25 @@ rpc.onfail = rpc.onerror = (error, url) => mixWorker.onerror?.(error, url);
 mixWorker.queueUpdates = false;
 
 const scheduleUpdate = mixWorker.scheduleUpdate = new Set;
+const skipCreate = new Set;
 
-mixWorker.update = (url, force = false) => {
+mixWorker.update = (url, force = false, noCreate = false) => {
+  if (noCreate) {
+    skipCreate.add(url);
+  }
   if (!force && mixWorker.queueUpdates) {
     scheduleUpdate.add(url);
   } else {
-    // rpc(BUFFER_SERVICE_URL, 'clear', [url])
-    rpc.update(getRpcUrl(url));
+    rpc.update(getRpcUrl(url), noCreate);
   }
 };
 
 mixWorker.flushUpdates = () => {
   for (const url of scheduleUpdate) {
-    mixWorker.update(url, true);
+    mixWorker.update(url, true, skipCreate.has(url));
   }
   scheduleUpdate.clear();
+  skipCreate.clear();
 };
 
 mixWorker.clear = () => rpc.clearAll();
@@ -1489,7 +1581,7 @@ class Context {
   }
 
   constructor (data) {
-    this.id = randomId();
+    this.id = data.id ?? randomId();
 
     this.bpm = 60;
     this.beatRate = 44100;
@@ -1545,7 +1637,7 @@ class Context {
 
   // public api
 
-  buf ({ id = '', len = this.buffer[0].length, ch = this.buffer.length } = {}) {
+  buf ({ id = '', len = this.bufferSize, ch = this.buffer.length } = {}) {
     return rpc(BUFFER_SERVICE_URL, 'getBuffer', [
       id+checksumOf(this),
       len|0,
@@ -1569,6 +1661,10 @@ class Context {
     return ImpulseReverb(this, params)
   }
 
+  reverbStereo (params) {
+    return ImpulseReverbStereo(this, params)
+  }
+
   zero (buffer = this.buffer) {
     buffer.forEach(b => b.fill(0));
     return buffer
@@ -1577,21 +1673,63 @@ class Context {
   src (url, params = {}) {
     const targetUrl = new URL(url, this.url ?? location.href).href;
     const context = Object.assign(this.toJSON(), params, { url: targetUrl });
-      // const checksum = c.checksum
-
-      // if (checksums[c.url + c.id] === checksum) return
-
-      // checksums[c.url + c.id] = checksum
-    // console.log('here!')
     return mixWorker(targetUrl, context).then(result => {
       result.update = c => { c.src(url, params); };
       return result
     })
   }
 
-  mix(...args) {
+  async render (name, params) {
+    const id = name + checksumOf(params);
+    const buffer  = await this.buf({ ...params, id });
+    if (buffer.createdNow) {
+      console.log('shall render', name, id, buffer, params);
+      await this.src('./' + name + '.js', { buffer, ...params, id });
+    }
+    return buffer
+  }
+
+  mix (...args) {
     return mixBuffers(...args)
   }
+
+  async import (sources) {
+    const entries = await Promise.all(
+      Object.entries(sources)
+        .map(async ([key, value]) => {
+          const params = { ...value };
+          delete params.src;
+          const buffer = await this.render(value.src ?? key, {
+            id: key,
+            ...params,
+          });
+          return [key, buffer]
+        }));
+
+    return Object.fromEntries(entries)
+  }
+
+  // async import (sources) {
+  //   const entries = await Promise.all(
+  //     Object.entries(sources)
+  //       .map(async ([key, value]) => {
+  //         const buffer = value.buffer ?? await this.buf({
+  //           id: value.id ?? key,
+  //           len: value.len ?? this.br,
+  //           ch: value.ch ?? 1,
+  //         })
+  //         const params = { ...value }
+  //         delete params.src
+  //         const src = await this.src('./' + (value.src ?? key) + '.js', {
+  //           id: key,
+  //           ...params,
+  //           buffer
+  //         })
+  //         return [key, buffer]
+  //       }))
+
+  //   return Object.fromEntries(entries)
+  // }
 
   // internals
 
@@ -1632,35 +1770,16 @@ class Context {
     this.k = this.p1 / this.br;
   }
 
-  // get checksum () {
-  //   return checksumOf(this)
-  // }
-
-  // set checksum (value) {
-  //   /* ignore */
-  // }
-
-  get bufferSize () { return this.buffer[0].length }
-
-  // get c () { return this }
-  // get sr () { return this.sampleRate }
-  // get br () { return this.beatRate }
+  get bufferSize () { return this.buffer[0].length*4 }
 
   toJSON () {
     const json = {};
-    // this.prepare()
     for (const key in this) {
       if (key[0] === '_') continue
       if (typeof this[key] !== 'function') {
         json[key] = this[key];
       }
     }
-    // delete json.g
-    // delete json.worker
-    // delete json.parent
-    // json.n = this.n
-    // json.frame = this.frame
-    // json.checksum = this.checksum
     return json
   }
 
@@ -1748,15 +1867,15 @@ const setup = async (url, context) => {
   self.fn = (await import(self.url)).default;
 
   // test a render
-  await render$1({
-    ...context,
-    id: 'test',
-    url: self.url,
-    buffer: [
-      new Float32Array(4),
-      new Float32Array(4)
-    ]
-  });
+  // await render({
+  //   ...context,
+  //   id: 'test',
+  //   url: self.url,
+  //   buffer: [
+  //     new Float32Array(4),
+  //     new Float32Array(4)
+  //   ]
+  // })
 
   self.hasSetup = true;
   self.methods.render = atomic(async (url, context) => {

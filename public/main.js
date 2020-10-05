@@ -74,7 +74,6 @@ let selectionText = '';
 let textarea;
 
 const editors = {};
-
 class Editor {
   constructor (data) {
     this.data = data;
@@ -88,6 +87,7 @@ class Editor {
     this.focusedEditor = this;
 
     this.canvas = document.createElement('canvas');
+    this.canvas.className = 'editor';
     this.canvas.width = data.width * pixelRatio;
     this.canvas.height = data.height * pixelRatio;
     this.canvas.style.width = data.width + 'px';
@@ -137,6 +137,9 @@ class Editor {
       pixelRatio,
     }, [outerCanvas]);
     this.onready?.();
+    // this.stream = this.canvas.captureStream(15)
+    // this.videoTrack = this.stream.getVideoTracks()[0]
+    // this.videoTrack.requestFrame()
   }
 
   _onsetup () {
@@ -156,6 +159,23 @@ class Editor {
     //   console.log('put in cache:', this.filename)
     // }
     this.onchange?.(data);
+  }
+
+  _ondraw () {
+    // this.videoTrack.requestFrame()
+  }
+
+  _onrename (data) {
+    this.focusedEditor = data;
+    this.onrename?.(data);
+  }
+
+  _onadd (data) {
+    this.onadd?.(data);
+  }
+
+  _onremove (data) {
+    this.onremove?.(data);
   }
 
   _onhistory (history) {
@@ -210,13 +230,17 @@ class Editor {
     if (this.hasSetup) {
       this.worker
         .postMessage({
-          call: 'addSubEditor',
           ...this.data,
           ...data,
+          call: 'addSubEditor',
         });
     } else {
       this.toAdd.push(data);
     }
+  }
+
+  _onimagebitmap ({ imageBitmap }) {
+    this.imageBitmap = imageBitmap;
   }
 
   handleEvent (type, eventName, e = {}) {
@@ -229,6 +253,23 @@ class Editor {
       e.stopPropagation?.();
     }
 
+    // remove editor
+    if ((data.ctrlKey || data.metaKey) && data.key === 'b') {
+      const { title } = this.focusedEditor;
+      if (confirm('Are you sure you want to delete ' + title + '?')) {
+        this.worker.postMessage({
+          call: 'deleteEditor',
+          id: this.focusedEditor.id
+        });
+      }
+    }
+
+    // add editor
+    if ((data.ctrlKey || data.metaKey) && data.key === ',') {
+      this.ontoadd?.();
+    }
+
+    // rename editor
     if ((data.ctrlKey || data.metaKey) && data.key === 'm') {
       // TODO: completely hacky way to remove the textarea while
       // there is title change
@@ -237,9 +278,11 @@ class Editor {
       ask('Change name', `Type a new name for "${this.focusedEditor.title}"`,
         this.focusedEditor.title).then(async (result) => {
         if (!result) return
-        if (this.id === this.focusedEditor.id) {
-          this.title = result.value;
-        }
+        // if (this.id === this.focusedEditor.id) {
+        //   const oldTitle = this.title
+        //   this.title = result.value
+        //   // this.onrename?.(oldTitle, this.title)
+        // }
         this.worker
           .postMessage({
             call: 'renameEditor',
@@ -664,6 +707,7 @@ const getSettings = () => {
   const common = {
     font: '/fonts/mplus-1m-regular.woff2',
     fontSize: '9.4pt',
+    // fontSize: '16.4pt',
     padding: 10,
     titlebarHeight: 42,
   };
@@ -690,18 +734,23 @@ class Editors {
   }
 
   constructor (el, project) {
-    if (!project) project = {
-      title: 'untitled',
-      bpm: '125',
-      tracks: [{
-        title: 'untitled/track.js',
-        value: ''
-      }],
-      modules: [{
-        title: 'untitled/module.js',
-        value: ''
-      }]
-    };
+    if (!project || typeof project === 'string') {
+      const title = typeof project === 'string' ? project : 'untitled';
+      project = {
+        title,
+        bpm: '125',
+        tracks: [{
+          title: title + '/track.js',
+          value: 'export default c => 0'
+        }],
+        modules: [{
+          title: title + '/module.js',
+          value: 'export default c => 0'
+        }]
+      };
+    }
+    project.tracks = project.tracks.filter(track => !!track.value.trim());
+    project.modules = project.modules.filter(mod => !!mod.value.trim());
     this.project = project;
     this.el = el;
     this.title = project.title;
@@ -731,8 +780,25 @@ class Editors {
       this.onchange?.(track);
       console.log('track changed:', data);
     };
+    this.tracksEditor.onrename = data => {
+      const track = this.tracks.find(track => track.title === data.prevTitle);
+      track.title = data.title;
+      this.onrename?.(track);
+      console.log('track renamed:', data.prevTitle, data.title);
+    };
+    this.tracksEditor.onadd = data => {
+      this.onadd?.(data);
+      this.tracksEditor.resize();
+    };
+    this.tracksEditor.onremove = data => {
+      const track = this.tracks.find(track => track.title === data.title);
+      this.tracks.splice(this.tracks.indexOf(track), 1);
+      this.onremove?.(data);
+      this.tracksEditor.resize();
+    };
+    this.tracksEditor.ontoadd = () => this.ontoaddtrack?.();
 
-    this.ensureModuleEditor(this.title, this.project.modules[0]);
+    this.ensureModuleEditor(this.project.modules?.[0]?.title.split('/')[0] ?? this.title, this.project.modules[0]);
 
     this.tracksEditor.onfocus = editor => {
       const [dir, title] = editor.title.split('/');
@@ -746,6 +812,7 @@ class Editors {
         this.currentModuleEditor = moduleEditor;
         moduleEditor.resize();
       }
+      this.onfocus?.(this.tracksEditor);
     };
     this.tracksEditor.canvas.style.left = settings.modules.width + 'px';
     this.tracksEditor.parent = this.el;
@@ -759,24 +826,54 @@ class Editors {
 
   ensureModuleEditor (dir, module) {
     let moduleEditor = this.modulesEditors[dir];
+
     if (moduleEditor) {
-      if (module) moduleEditor.addSubEditor(module);
+      if (module) {
+        moduleEditor.addSubEditor(module);
+        if (!this.modules.find(mod => mod.title === module.title)) {
+          this.modules.push(module);
+        }
+      }
       return moduleEditor
     }
 
-    if (!module) module = { title: dir + '/module.js' };
+    if (!module) {
+      module = { title: dir + '/module.js', value: 'export default c => 0' };
+    }
+    if (!this.modules.find(mod => mod.title === module.title)) {
+      this.modules.push(module);
+    }
 
     const settings = getSettings();
     moduleEditor = this.modulesEditors[dir] = new Editor({
       ...module,
       ...settings.modules
     });
+    moduleEditor.onfocus = () => this.onfocus?.(moduleEditor);
     moduleEditor.onchange = data => {
       const module = this.modules.find(module => module.title === data.title);
       module.value = data.value;
       this.onchange?.(module);
       console.log('module changed:', data);
     };
+    moduleEditor.onrename = data => {
+      const module = this.modules.find(module => module.title === data.prevTitle);
+      module.title = data.title;
+      this.onrename?.(module);
+      console.log('module renamed:', data.prevTitle, data.title);
+    };
+    moduleEditor.onadd = data => {
+      this.onadd?.(data);
+      moduleEditor.resize();
+    };
+    moduleEditor.onremove = data => {
+      const module = this.modules.find(module => module.title === data.title);
+      this.modules.splice(this.modules.indexOf(module), 1);
+      console.log('removed', module, this.modules);
+      this.onremove?.(data);
+      moduleEditor.resize();
+    };
+    moduleEditor.ontoadd = () => this.ontoaddmodule?.();
 
     if (this.currentModuleEditor) {
       moduleEditor.canvas.style.display = 'none';
@@ -801,7 +898,14 @@ class Editors {
   addModule (module) {
     const [dir, title] = module.title.split('/');
     this.ensureModuleEditor(dir, module);
-    this.modules.push(module);
+    // this.modules.push(module)
+  }
+
+  resize () {
+    const settings = getSettings();
+    this.tracksEditor.resize(settings.tracks);
+    this.tracksEditor.canvas.style.left = settings.modules.width + 'px';
+    Object.values(this.modulesEditors).forEach(editor => editor.resize(settings.modules));
   }
 
   async importProject (title) {
@@ -831,6 +935,363 @@ const Icon = (size, name, path, extra = '') =>
     height="${size}"
     viewBox="0 0 32 32"
     ><path class="path" d="${path}" />${extra}</svg>`);
+
+var createAnalyser = ({
+  audio = null,
+  source = null,
+  size = 1024,
+  wave = [0,1].map(() => new Float32Array(size)),
+  freq = [0,1].map(() => new Float32Array(size)),
+} = {}) => {
+  if (!source) {
+    if (!audio) {
+      audio = new AudioContext({ latencyHint: 'playback' });
+    }
+    source = audio.createBufferSource();
+  } else {
+    audio = source.context;
+  }
+
+  // frequency analyser
+  const splitter = audio.createChannelSplitter(2);
+  const analysers = [0,1].map((_, i) => {
+    const analyser = audio.createAnalyser();
+    analyser.fftSize = size*2;
+    analyser.minDecibels = -100;
+    analyser.maxDecibels = -0;
+    analyser.smoothingTimeConstant = 0;
+    splitter.connect(analyser, i, 0);
+    return analyser
+  });
+
+  // waveform analyser
+  let inputBuffer = { getChannelData: () => [] };
+  const gain = audio.createGain();
+  gain.gain.value = 0.0;
+  gain.connect(audio.destination); // or node doesn't start
+  const script = audio.createScriptProcessor(size, 2, 2);
+  script.onaudioprocess = e => { inputBuffer = e.inputBuffer; };
+  script.connect(gain);
+
+  // connect
+  source.connect(script);
+  source.connect(splitter);
+
+  const getData = () => {
+    wave[0].set(inputBuffer.getChannelData(0));
+    wave[1].set(inputBuffer.getChannelData(1));
+    analysers[0].getFloatFrequencyData(freq[0]);
+    analysers[1].getFloatFrequencyData(freq[1]);
+    // analysers[0].getFloatTimeDomainData(wave[0])
+    // analysers[1].getFloatTimeDomainData(wave[1])
+    return { wave, freq }
+  };
+
+  return {
+    getData,
+    source,
+    audio,
+    size,
+    wave,
+    freq,
+  }
+};
+
+class Shared32Array {
+  constructor (length) {
+    return new Float32Array(
+      new SharedArrayBuffer(
+        length * Float32Array.BYTES_PER_ELEMENT)
+    )
+  }
+}
+
+const fetchAudioBuffer = async (audio, url) => {
+  const res = await fetch(url);
+  const arrayBuffer = await res.arrayBuffer();
+  const audioBuffer = await audio.decodeAudioData(arrayBuffer);
+  return audioBuffer
+};
+
+var Audio = (worker, { source, size = 1024, depth = 60*8, src = null, start = 0 } = {}) => {
+  const audio = {
+    size,
+    depth,
+  };
+
+  audio.analyser = createAnalyser({ source, size });
+
+  audio.stop = () => {};
+
+  if (src) {
+    fetchAudioBuffer(audio.analyser.audio, src).then(audioBuffer => {
+      audio.analyser.source.buffer = audioBuffer;
+      audio.analyser.source.loop = true;
+      // analyser.source.loopStart = 23
+      // analyser.source.loopEnd = 47.2
+      audio.analyser.source.start(0, start);
+    });
+    audio.stop = () => audio.analyser.source.stop();
+  }
+
+  const data = audio.data = new Shared32Array(4 * size);
+
+  setTimeout(() => {
+    worker.postMessage({
+      call: 'onsourcedata',
+      name: 'audio',
+      data,
+    });
+  }, 1000);
+
+  audio.update = () => {
+    const { wave, freq } = audio.analyser.getData();
+
+    audio.data.set(wave[0], 0*size);
+    audio.data.set(wave[1], 1*size);
+    audio.data.set(freq[0], 2*size);
+    audio.data.set(freq[1], 3*size);
+  };
+
+  return audio
+};
+
+var Stream = ({ worker, stream, name }) => {
+  let _track;
+
+  const [track] = stream.getVideoTracks();
+
+  _track = track;
+
+  const noop = () => {};
+
+  const service = {
+    update: noop,
+    stop: noop,
+    setStream (stream) {
+      _track.enabled = false;
+      _track.onmute = noop;
+      const [track] = stream.getVideoTracks();
+      _track = track;
+      track.enabled = true;
+      maybeBeginCapture(track);
+    }
+  };
+
+  const beginCapture = track => {
+    const capture = new ImageCapture(track);
+
+    track.onmute = () => {
+      track.onmute = noop;
+      service.update = noop;
+      maybeBeginCapture(track);
+    };
+
+    service.update = () => {
+      if (!track.enabled) return
+      capture.grabFrame().then(data => {
+        worker.postMessage({
+          call: 'onsourcedata',
+          name,
+          data,
+        }, [data]);
+      }).catch(error => {
+        if (error) {
+          console.error(name, error);
+          console.dir(track);
+          console.log(track.readyState, track.enabled, track.muted);
+        }
+      });
+    };
+
+    service.stop = () => {
+      track.stop();
+      service.onstop?.();
+    };
+  };
+
+  const maybeBeginCapture = (track) => {
+    if (track.muted) {
+      track.onunmute = () => beginCapture(track);
+    } else {
+      beginCapture(track);
+    }
+  };
+
+  if (!track) {
+    stream.onaddtrack = ({ track }) => maybeBeginCapture(track);
+  } else {
+    maybeBeginCapture(track);
+  }
+
+  return service
+};
+
+var Webcam = async (worker) => {
+  const stream = await navigator.mediaDevices.getUserMedia({
+    video: {
+      resizeMode: 'crop-and-scale',
+      facingMode: 'user',
+      frameRate: 24,
+      width: 1280, //144,
+      height: 720, //144
+    }
+  });
+
+  const webcam = Stream({
+    name: 'webcam',
+    worker,
+    stream,
+  });
+
+  return webcam
+};
+
+const getUrl = id => `http://localhost:3000/fetch?url=youtube:${id.replace(/a-z-_/gi, '')}`;
+
+var Youtube = worker => {
+  const video = document.createElement('video');
+  video.volume = 0.000000000000001; // mute prevents video from autoplaying (wtf!)
+  video.crossOrigin = 'anonymous';
+  video.autoplay = true;
+  video.loop = true;
+  // video.style.zIndex = 1000
+  // video.style.position = 'fixed'
+  // document.body.appendChild(video)
+
+  const stream = video.captureStream();
+
+  const youtube = Stream({
+    name: 'youtube',
+    worker,
+    stream,
+  });
+
+  youtube.set = id => {
+    video.src = getUrl(id);
+  };
+
+  youtube.onstop = () => video.pause();
+
+  return youtube
+};
+
+var Editor$1 = (worker, { stream }) => {
+  const editor = Stream({
+    name: 'editor',
+    worker,
+    stream
+  });
+
+  const update = () => editor.update();
+  const stop = () => {};
+
+  return {
+    ...editor,
+    update,
+    stop,
+  }
+};
+
+// hacky way to switch root urls from dev to prod
+const prefix = location.port == 8080
+  ? '/shader/' : '';
+
+const pixelRatio$1 = window.devicePixelRatio;
+const workerUrl = new URL(prefix + 'shader-worker.js', import.meta.url).href;
+console.log('worker url', workerUrl);
+
+class Shader {
+  constructor (el, { source, stream }) {
+    this.el = el;
+    this.source = source;
+    this.stream = stream;
+    this.canvas = El('shader', '', {
+      tag: 'canvas',
+      width: window.innerWidth,
+      height: window.innerHeight
+    });
+    this.el.insertBefore(this.canvas, this.el.firstChild);
+
+    this.worker = new Worker(workerUrl, { type: 'module' });
+    this.worker.onmessage = ({ data }) => this[data.call](data);
+    this.worker.onmessageerror = error => this.onerror(error);
+    this.worker.onerror = error => this.onerror(error);
+
+    this.sources = {};
+    this.frame = 0;
+    this.tick = () => {
+      if (this.frame % 2 === 0) { // videos only need <30fps
+        this.sources.webcam?.update();
+        this.sources.youtube?.update();
+        this.sources.editor?.update();
+      }
+      this.sources.audio?.update();
+      this.frame++;
+    };
+
+    this.render = this.render.bind(this);
+
+    this.offscreen = this.canvas.transferControlToOffscreen();
+
+    this.worker.postMessage({
+      call: 'setup',
+      canvas: this.offscreen,
+      pixelRatio: pixelRatio$1,
+    }, [this.offscreen]);
+  }
+
+  async makeSources () {
+    this.sources = {};
+    this.sources.audio = this.sources.audio ?? Audio(this.worker, { source: this.source, size: 1024, depth: 60*8 });
+    this.sources.webcam = this.sources.webcam ?? await Webcam(this.worker);
+    this.sources.youtube = this.sources.youtube ?? Youtube(this.worker);
+    this.sources.editor = this.sources.editor ?? Editor$1(this.worker, { stream: this.stream });
+  }
+
+  sourcecall ({ name, method, params }) {
+    this.sources?.[name]?.[method]?.(...params);
+  }
+
+  onerror (error) {
+    console.error(error.error ?? error);
+    // this.stop()
+  }
+
+  load (filename) {
+    this.worker.postMessage({
+      call: 'load',
+      filename //new URL(prefix + 'test-cg.js', import.meta.url).href,
+    });
+    this.start();
+  }
+
+  start () {
+    if (this.playing) return
+    this.makeSources();
+    cancelAnimationFrame(this.animFrame);
+    this.animFrame = requestAnimationFrame(this.render);
+    this.worker.postMessage({
+      call: 'start'
+    });
+    this.playing = true;
+  }
+
+  stop () {
+    Object.values(this.sources).forEach(s => s.stop?.());
+    this.sources = {};
+    cancelAnimationFrame(this.animFrame);
+    this.worker.postMessage({
+      call: 'stop'
+    });
+    this.playing = false;
+  }
+
+  render () {
+    this.animFrame = requestAnimationFrame(this.render);
+    this.tick();
+  }
+}
 
 class Tabs {
   constructor (el, tabs) {
@@ -879,7 +1340,7 @@ const relativeMouseCoords = function (canvas, event) {
   return {x:canvasX, y:canvasY}
 };
 
-const pixelRatio$1 = window.devicePixelRatio;
+const pixelRatio$2 = window.devicePixelRatio;
 
 const settings = {
   height: 20,
@@ -897,9 +1358,9 @@ class Mixer {
     this.canvas.className = 'mixer';
     this.ctx = this.canvas.getContext('2d');
     this.resize();
-    this.ctx.scale(pixelRatio$1, pixelRatio$1);
-    this.ctx.fillStyle = '#000';
-    this.ctx.fillRect(0, 0, this.width, this.height);
+    this.ctx.scale(pixelRatio$2, pixelRatio$2);
+    // this.ctx.fillStyle = 'rgba(0,0,0,.5)'
+    // this.ctx.fillRect(0, 0, this.width, this.height)
     this.ctx.textBaseline = 'top';
     this.faders.forEach((_, i) => this.drawFader(i));
     this.registerEvents();
@@ -914,6 +1375,7 @@ class Mixer {
   updateFader (i) {
     let y = (settings.height + 2) * i;
     let w = this.width;
+    let off = 8.1;
 
     const gradient = this.ctx.createLinearGradient(0, 0, this.width, 0);
     gradient.addColorStop(.7, settings.colors[0]);
@@ -921,16 +1383,17 @@ class Mixer {
     gradient.addColorStop(.96, settings.colors[2]);
 
     this.ctx.fillStyle = '#1f1f2f';
-    this.ctx.fillRect(w/2, y+3, w/2-4, settings.height - 6);
+    this.ctx.fillRect(w/2+off, y+3, w/2-4-off, settings.height - 6);
     this.ctx.fillStyle = this.faders[i].mute ? settings.muteColor : gradient; //settings.color(this.faders[i].vol*.8+.2)
-    let r = ( (w/2-8) * (this.faders[i].vol) );
-    this.ctx.fillRect(w/2+2, y+5, r, settings.height - 10);
+    let r = ( (w/2-8-off) * (this.faders[i].vol) );
+    this.ctx.fillRect(w/2+2+off, y+5, r, settings.height - 10);
   }
 
   drawFader (i) {
     let y = (settings.height + 2) * i;
     let w = this.width;
-    this.ctx.fillStyle = '#000';
+    let off = 8.1;
+    this.ctx.fillStyle = 'rgba(0,0,0,.5)';
     this.ctx.fillRect(0, y, w, settings.height);
     this.updateFader(i);
     // ctx.fillStyle = '#f00'
@@ -942,9 +1405,9 @@ class Mixer {
     this.ctx.fillText(i, 5, y + 6);
 
     this.ctx.fillStyle = settings.colors[this.faders[i].X ? 1 : 0];
-    this.ctx.fillText('X', 119, y + 6);
+    this.ctx.fillText('X', 119+off, y + 6);
     this.ctx.fillStyle = settings.colors[this.faders[i].Y ? 1 : 0];
-    this.ctx.fillText('Y', 129, y + 6);
+    this.ctx.fillText('Y', 129+off, y + 6);
 
     this.ctx.font = '6.5pt mono'; //sans serif'
     this.ctx.fillStyle = '#aaf';
@@ -953,7 +1416,7 @@ class Mixer {
     // ctx.fillText('M', x + 21, 7 + h)
     this.ctx.beginPath();
     this.ctx.fillStyle = settings.colors[this.faders[i].mute ? 2 : 1];
-    this.ctx.arc(w/2 - 8, y + settings.height/2, 1.9, 0, 2*Math.PI);
+    this.ctx.arc(w/2 - 8+off, y + settings.height/2, 1.9, 0, 2*Math.PI);
     this.ctx.fill();
   }
 
@@ -961,8 +1424,9 @@ class Mixer {
     let strategy;
 
     const get = e => {
-      const { x, y } = relativeMouseCoords(this.canvas, e);
-      const i = Math.ceil(y / pixelRatio$1 / (settings.height + 2)) - 1;
+      let { x, y } = relativeMouseCoords(this.canvas, e);
+      const i = Math.ceil(y / pixelRatio$2 / (settings.height + 2)) - 1;
+      x -= 8.1*2;
       return { x, y, i }
     };
 
@@ -982,7 +1446,7 @@ class Mixer {
 
     const adjustVolume = e => {
       const { x, i } = get(e);
-      const vol = Math.max(0, Math.min(1, ( (x-(this.width)) / ((this.width * pixelRatio$1 / 2)) )));
+      const vol = Math.max(0, Math.min(1, ( (x-(this.width)) / ((this.width * pixelRatio$2 / 2)) )));
       if (this.faders[i]) {
         this.faders[i].vol = vol;
         this.onchange?.(this.faders[i]);
@@ -1025,7 +1489,7 @@ class Mixer {
         this.drawFader(i);
         return
       }
-      if (x < this.width * pixelRatio$1 / 2 - 65) {
+      if (x < this.width * pixelRatio$2 / 2 - 65) {
         strategy = [reorderTrack, stopReorderTrack];
       } else {
         strategy = [adjustVolume];
@@ -1042,8 +1506,8 @@ class Mixer {
     this.width = 300, //(window.innerWidth - (window.innerWidth / 2)) / 2
     this.height = this.faders.length * (settings.height + 2);
     Object.assign(this.canvas, {
-      width: this.width * pixelRatio$1,
-      height: this.height * pixelRatio$1
+      width: this.width * pixelRatio$2,
+      height: this.height * pixelRatio$2
     });
     Object.assign(this.canvas.style, {
       right: 0,
@@ -1080,10 +1544,10 @@ class SelectMenu {
 }
 
 class ButtonPlayPause {
-  constructor (el, size = 30) {
+  constructor (el, size = 29) {
     this.el = el;
-    this.play = Icon(size, 'play', 'M6 4 L6 28 26 16 Z');
-    this.pause = Icon(size, 'play pause', 'M18 6 L18 27 M6 6 L6 27');
+    this.play = Icon(size, 'play', 'M6 4 L6 28 21 16 Z');
+    this.pause = Icon(size, 'play pause', 'M16 6 L16 27 M6 6 L6 27');
     this.play.onmousedown = () => {
       this.play.parentNode.replaceChild(this.pause, this.play);
       this.onplay?.();
@@ -1099,6 +1563,8 @@ class ButtonPlayPause {
 const dispatch = listeners => event =>
   listeners.forEach(fn => fn(event));
 
+const PAUSE_TIMEOUT = 10 * 1000; // 10 secs
+
 class SafeDynamicWorker {
   constructor (url) {
     this.url = url;
@@ -1112,6 +1578,8 @@ class SafeDynamicWorker {
       onmessageerror: [],
       onfail: []
     };
+
+    this.pause = this.pause.bind(this);
 
     this.updateInstance();
   }
@@ -1166,6 +1634,9 @@ class SafeDynamicWorker {
   }
 
   examineAck ({ data }) {
+    clearTimeout(this.timeout);
+    this.timeout = setTimeout(this.pause, PAUSE_TIMEOUT);
+
     if (data.ack) {
       this.pendingAckMessages =
       this.pendingAckMessages
@@ -1189,6 +1660,30 @@ class SafeDynamicWorker {
     this.worker = new Worker(this.url, { type: 'module' });
     this.bindListeners();
     this.retryMessages();
+
+    this.paused = false;
+    clearTimeout(this.timeout);
+    this.timeout = setTimeout(this.pause, PAUSE_TIMEOUT);
+  }
+
+  pause () {
+    try {
+      if (this.worker) {
+        this.worker.terminate();
+      }
+      this.worker = null;
+    } catch {}
+
+    try {
+      if (this.safe) {
+        this.safe.terminate();
+      }
+      this.safe = null;
+    } catch {}
+
+    this.paused = true;
+    this.onpause();
+    console.log('worker paused: ', this.url);
   }
 
   bindListeners () {
@@ -1204,6 +1699,9 @@ class SafeDynamicWorker {
   }
 
   postMessage (message, transfer) {
+    clearTimeout(this.timeout);
+    this.timeout = setTimeout(this.pause, PAUSE_TIMEOUT);
+
     const payload = {
       ackId: ++this.ackId,
       message
@@ -1242,7 +1740,7 @@ const rpcs = new Map;
 
 const rpc = (url, method, args = []) => getRpc(url).rpc(method, args);
 rpc.get = url => getRpc(url);
-rpc.update = url => getRpc(url).worker.updateInstance();
+rpc.update = (url, noCreate = false) => getRpc(url, noCreate)?.worker?.updateInstance();
 rpc.markAsSafe = url => getRpc(url).worker.markAsSafe();
 rpc.clear = () => rpcs.clear();
 rpc.clearHanging = error => { [...callbacks.values()].forEach(fn => fn.reject(error)), callbacks.clear(); };
@@ -1267,6 +1765,8 @@ class Rpc {
         this.worker = new SafeDynamicWorker(url);
         workers.set(url, this.worker);
         this.bindListeners();
+      } else if (this.worker.paused) {
+        this.worker.updateInstance();
       }
     }
   }
@@ -1279,9 +1779,10 @@ class Rpc {
       }
       this[data.call](data);
     };
-    this.worker.onmessageerror = error => rpc.onmessageerror?.(error, url);
-    this.worker.onerror = error => rpc.onerror?.(error, url);
-    this.worker.onfail = fail => rpc.onfail?.(fail, url);
+    this.worker.onmessageerror = error => rpc.onmessageerror?.(error, this.url);
+    this.worker.onerror = error => rpc.onerror?.(error, this.url);
+    this.worker.onfail = fail => rpc.onfail?.(fail, this.url);
+    this.worker.onpause = () => rpcs.delete(this.url);
   }
 
   async proxyRpc ({ url, callbackId, method, args }) {
@@ -1363,10 +1864,13 @@ class RpcProxy {
   }
 }
 
-const getRpc = url => {
+const getRpc = (url, noCreate = false) => {
   url = new URL(url, location.href).href;
   if (isMain) {
-    if (!rpcs.has(url)) rpcs.set(url, new Rpc(url));
+    if (!rpcs.has(url)) {
+      if (noCreate) return
+      rpcs.set(url, new Rpc(url));
+    }
     return rpcs.get(url)
   } else {
     return new RpcProxy(url)
@@ -1416,7 +1920,6 @@ const install = self => {
         replyTo: data.message.callbackId,
         error
       });
-      // self.postMessage({ call: 'onerror', error })
     }
   };
 
@@ -1431,7 +1934,7 @@ if (!isMain$1) {
   install(self);
 }
 
-class Shared32Array {
+class Shared32Array$1 {
   constructor (length) {
     return new Float32Array(
       new SharedArrayBuffer(
@@ -1461,10 +1964,11 @@ var SampleService = audio => {
           const res = await fetch(url);
           const arrayBuffer = await res.arrayBuffer();
           const audioBuffer = await audio.decodeAudioData(arrayBuffer);
+          console.log('got audiobuffer', url, audioBuffer);
           const floats = Array(audioBuffer.numberOfChannels).fill(0).map((_, i) =>
             audioBuffer.getChannelData(i));
           sample = floats.map(buf => {
-            const shared = new Shared32Array(buf.length);
+            const shared = new Shared32Array$1(buf.length);
             shared.set(buf);
             return shared
           });
@@ -1491,7 +1995,7 @@ var SampleService = audio => {
 
 let audio;
 
-var Audio = () => {
+var Audio$1 = () => {
   if (audio) return audio
 
   audio = new AudioContext({
@@ -1575,7 +2079,7 @@ class ListBrowse {
 
       const buttonPlayPause = new ButtonPlayPause(itemEl, 22);
       buttonPlayPause.onplay = async () => {
-        const audio = Audio();
+        const audio = Audio$1();
         const res = await fetch(ogg);
         const arrayBuffer = await res.arrayBuffer();
         const audioBuffer = await audio.decodeAudioData(arrayBuffer);
@@ -1609,7 +2113,14 @@ class ButtonSave {
     this.el = el;
     // this.save = Icon(32, 'save', 'M5 27  L30 27  30 10  25 4  10 4  5 4  Z  M12 4  L12 11  23 11  23 4  M12 27  L12 17  23 17  23 27')
     // this.save = Icon(32, 'save', 'M5 27  L30 27  30 10  25 4  10 4  5 4  Z  M11 4  L11 10  21 10  21 4', '<circle class="path" cx="17.5" cy="18.5" r="4" />')
-    this.save = Icon(32, 'save', 'M5 27  L30 27  30 10  25 4  10 4  5 4  Z  M10.5 9.5  L21 9.5', '<circle class="path" cx="17.4" cy="18.5" r="3.4" />');
+    // this.save = Icon(32, 'save', 'M5 27  L30 27  30 10  25 4  10 4  5 4  Z  M10.5 9.5  L21 9.5', '<circle class="path" cx="17.4" cy="18.5" r="3.4" />')
+    // this.save = Icon(32, 'save', 'M7 26 L28 26', '<circle class="path" cx="17.4" cy="14.4" r="5" />')
+    // this.save = Icon(28, 'save', 'M28 22 L28 30 4 30 4 22 M16 4 L16 24 M8 16 L16 24 24 16')
+    this.save = Icon(37, 'save', 'M17 4 Q13 6, 16 10.5 T 15 17  M7 16 L16 24 25 16 ');
+    // this.save = Icon(30, 'save', 'M9 22 C0 23 1 12 9 13 6 2 23 2 22 10 32 7 32 23 23 22 M11 18 L16 14 21 18 M16 14 L16 29')
+    // this.save = Icon(28, 'save', 'M14 9 L3 9 3 29 23 29 23 18 M18 4 L28 4 28 14 M28 4 L14 18')
+    // this.save = Icon(28, 'save', 'M28 22 L28 30 4 30 4 22 M16 4 L16 24 M8 12 L16 4 24 12')
+
     this.save.disabled = true;
     this.save.onclick = () => this.onsave?.();
     this.el.appendChild(this.save);
@@ -1672,6 +2183,27 @@ class InputBpm {
   }
 }
 
+class Toolbar {
+  constructor (el) {
+    this.el = el;
+
+    this.toolbar = El('toolbar');
+    this.toolbarLeft = El('toolbar-left');
+    this.toolbarCenter = El('toolbar-center');
+    this.toolbarRight = El('toolbar-right');
+    this.toolbar.appendChild(this.toolbarLeft);
+    this.toolbar.appendChild(this.toolbarCenter);
+    this.toolbar.appendChild(this.toolbarRight);
+
+    this.inputBpm = new InputBpm(this.toolbarRight);
+    this.buttonPlayPause = new ButtonPlayPause(this.toolbarRight);
+    this.buttonSave = new ButtonSave(this.toolbarLeft);
+    this.buttonLogo = new ButtonLogo(this.toolbarCenter);
+
+    this.el.appendChild(this.toolbar);
+  }
+}
+
 var toFinite = n => Number.isFinite(n) ? n : 0;
 
 const isMain$2 = typeof window !== 'undefined';
@@ -1693,6 +2225,7 @@ const garbageCollect = match => {
 };
 
 const BufferService = {
+  buffers,
   methods: {
     getBuffer: (checksum, size, channels = 2) => {
       const id = (checksum + size + channels).toString();
@@ -1705,7 +2238,7 @@ const BufferService = {
         buffer.accessedAt = performance.now();
         return buffer
       }
-      buffer = Array.from(Array(channels), () => new Shared32Array(size));
+      buffer = Array.from(Array(channels), () => new Shared32Array$1(size));
       buffer.createdNow = true;
       buffer.accessedAt = performance.now();
       buffer.checksum = checksum;
@@ -1752,21 +2285,25 @@ rpc.onfail = rpc.onerror = (error, url) => mixWorker.onerror?.(error, url);
 mixWorker.queueUpdates = false;
 
 const scheduleUpdate = mixWorker.scheduleUpdate = new Set;
+const skipCreate = new Set;
 
-mixWorker.update = (url, force = false) => {
+mixWorker.update = (url, force = false, noCreate = false) => {
+  if (noCreate) {
+    skipCreate.add(url);
+  }
   if (!force && mixWorker.queueUpdates) {
     scheduleUpdate.add(url);
   } else {
-    // rpc(BUFFER_SERVICE_URL, 'clear', [url])
-    rpc.update(getRpcUrl(url));
+    rpc.update(getRpcUrl(url), noCreate);
   }
 };
 
 mixWorker.flushUpdates = () => {
   for (const url of scheduleUpdate) {
-    mixWorker.update(url, true);
+    mixWorker.update(url, true, skipCreate.has(url));
   }
   scheduleUpdate.clear();
+  skipCreate.clear();
 };
 
 mixWorker.clear = () => rpc.clearAll();
@@ -1877,7 +2414,7 @@ class LoopNode {
   }
 
   get bufferSize () {
-    return this.beatRate * 4 /// 5 | 0
+    return this.beatRate * 4 //* 4 /// 5 | 0
   }
 
   resetTime (offset = 0) {
@@ -1928,7 +2465,6 @@ class LoopNode {
   }
 
   playBuffer (buffer) {
-    // console.log('should render buffer:', buffer[0].slice(0,3))
     const syncTime = this.syncTime;
     const output = this.nextBuffer;
     for (let i = 0; i < this.numberOfChannels; i++) {
@@ -1941,7 +2477,6 @@ class LoopNode {
     }
 
     if (!this.scheduledNode) {
-      // console.log('schedule for', syncTime)
       const node = this.scheduledNode = this.context.createBufferSource();
       node.buffer = this.nextBuffer;
       node.connect(this.gain);
@@ -2120,15 +2655,13 @@ var render = async (fn, context) => {
   const { buffer } = context;
   const numOfChannels = buffer.length;
 
-// console.log('N IS', context.n, context.frame)
   assertFinite(context.n);
 
   if (numOfChannels > 2) {
     throw new RangeError('unsupported number of channels [' + numOfChannels + ']')
   }
 
-  // context.prepare()
-  // context.tick()
+  context.update();
 
   let result;
   if (fn.constructor.name === 'AsyncFunction') {
@@ -2142,7 +2675,6 @@ var render = async (fn, context) => {
     return
   }
 
-// console.log('N IS', context.n)
   if (typeof result === 'object' && '0' in result && typeof result[0] === 'number') {
     if (numOfChannels === 1) {
       buffer[0][0] = (
@@ -2157,7 +2689,6 @@ var render = async (fn, context) => {
     renderStereo(fn, context);
     return context
   } else if (typeof result === 'number') {
-    // console.log('result is', result, context.toJSON())
     buffer[0][0] = assertFinite(result) / numOfChannels;
     context.tick();
     renderMono(fn, context);
@@ -2820,21 +3351,19 @@ var impulseConvolve = async (c, url, length) => {
   const id = 'kernel:' + url + ':' + c.buffer[0].length + ':' + length;
   let kernel = await c.get(id);
   if (kernel === false) {
-    console.log('processing kernel:', id);
+    // console.log('processing kernel:', id)
     kernel = convolve.fftProcessKernel(c.buffer[0].length, impulse[0]);
     await c.set(id, kernel);
-    console.log('set kernel cache:', id);
-  } else {
-    console.log('got cached kernel:', id);
+    // console.log('set kernel cache:', id)
   }
   const reverb = convolve.fftConvolution(c.buffer[0].length, kernel, impulse[0].length);
   return reverb
 };
 
-var ImpulseReverb = async (c, { url, offset = 0, length = -1 }=c) => {
+var ImpulseReverb = async (c, { url, offset = 0, length = -1, id = '' }=c) => {
   const reverb = await impulseConvolve(c, url, length);
   let tail = 0;
-  let prev = (await c.get('prev:'+url+(c.n-c.buffer[0].length)))||new Float32Array();
+  let prev = (await c.get('prev:'+id+url+(c.n-c.buffer[0].length)))||new Float32Array();
   let curr;
   let len = 0;
   let i = 0;
@@ -2847,8 +3376,62 @@ var ImpulseReverb = async (c, { url, offset = 0, length = -1 }=c) => {
     }
     tail = (curr.length - offset) - len;
     prev = curr.subarray(-tail);
-    c.set('prev:'+url+c.n, prev, 5000);
+    c.set('prev:'+id+url+c.n, prev, 5000);
     return curr.subarray(offset, offset + len)
+  }
+};
+
+var impulseConvolve$1 = async (c, url, length) => {
+  const impulse = await c.sample(url);
+  if (length > -1) {
+    impulse[0] = impulse[0].subarray(0, length);
+    impulse[1] = impulse[1].subarray(0, length);
+  }
+  const id = 'impulse-convolve-stereo:kernel:' + url + ':' + c.buffer[0].length + ':' + length;
+  let kernel = await c.get(id);
+  if (kernel === false) {
+    // console.log('processing kernel:', id)
+    kernel = [
+      convolve.fftProcessKernel(c.buffer[0].length, impulse[0]),
+      convolve.fftProcessKernel(c.buffer[0].length, impulse[1])
+    ];
+    await c.set(id, kernel);
+    // console.log('set kernel cache:', id)
+  }
+  const reverb = [
+    convolve.fftConvolution(c.buffer[0].length, kernel[0], impulse[0].length),
+    convolve.fftConvolution(c.buffer[0].length, kernel[1], impulse[0].length)
+  ];
+  return reverb
+};
+
+var ImpulseReverbStereo = async (c, { url, offset = 0, length = -1, id = '' }=c) => {
+  const reverb = await impulseConvolve$1(c, url, length);
+  let tail = 0;
+  let prev = (await c.get('impulse-reverb-stereo:prev:'+id+url+(c.n-c.buffer[0].length)))
+    ||[new Float32Array(),new Float32Array()];
+  let curr;
+  let len = 0;
+  let i = 0;
+  return c => {
+    len = c.buffer[0].length;
+    curr = [
+      reverb[0](c.buffer[0]),
+      reverb[1](c.buffer[1])
+    ];
+    // add remaining tail from previous step
+    for (i = 0; i < prev[0].length; i++) {
+      curr[0][i] += prev[0][i];
+      curr[1][i] += prev[1][i];
+    }
+    tail = (curr[0].length - offset) - len;
+    prev[0] = curr[0].subarray(-tail);
+    prev[1] = curr[1].subarray(-tail);
+    c.set('impulse-reverb-stereo:prev:'+id+url+c.n, prev, 5000);
+    return [
+      curr[0].subarray(offset, offset + len),
+      curr[1].subarray(offset, offset + len),
+    ]
   }
 };
 
@@ -2971,7 +3554,7 @@ class Context {
   }
 
   constructor (data) {
-    this.id = randomId();
+    this.id = data.id ?? randomId();
 
     this.bpm = 60;
     this.beatRate = 44100;
@@ -3027,7 +3610,7 @@ class Context {
 
   // public api
 
-  buf ({ id = '', len = this.buffer[0].length, ch = this.buffer.length } = {}) {
+  buf ({ id = '', len = this.bufferSize, ch = this.buffer.length } = {}) {
     return rpc(BUFFER_SERVICE_URL, 'getBuffer', [
       id+checksumOf(this),
       len|0,
@@ -3051,6 +3634,10 @@ class Context {
     return ImpulseReverb(this, params)
   }
 
+  reverbStereo (params) {
+    return ImpulseReverbStereo(this, params)
+  }
+
   zero (buffer = this.buffer) {
     buffer.forEach(b => b.fill(0));
     return buffer
@@ -3059,21 +3646,63 @@ class Context {
   src (url, params = {}) {
     const targetUrl = new URL(url, this.url ?? location.href).href;
     const context = Object.assign(this.toJSON(), params, { url: targetUrl });
-      // const checksum = c.checksum
-
-      // if (checksums[c.url + c.id] === checksum) return
-
-      // checksums[c.url + c.id] = checksum
-    // console.log('here!')
     return mixWorker(targetUrl, context).then(result => {
       result.update = c => { c.src(url, params); };
       return result
     })
   }
 
-  mix(...args) {
+  async render (name, params) {
+    const id = name + checksumOf(params);
+    const buffer  = await this.buf({ ...params, id });
+    if (buffer.createdNow) {
+      console.log('shall render', name, id, buffer, params);
+      await this.src('./' + name + '.js', { buffer, ...params, id });
+    }
+    return buffer
+  }
+
+  mix (...args) {
     return mixBuffers(...args)
   }
+
+  async import (sources) {
+    const entries = await Promise.all(
+      Object.entries(sources)
+        .map(async ([key, value]) => {
+          const params = { ...value };
+          delete params.src;
+          const buffer = await this.render(value.src ?? key, {
+            id: key,
+            ...params,
+          });
+          return [key, buffer]
+        }));
+
+    return Object.fromEntries(entries)
+  }
+
+  // async import (sources) {
+  //   const entries = await Promise.all(
+  //     Object.entries(sources)
+  //       .map(async ([key, value]) => {
+  //         const buffer = value.buffer ?? await this.buf({
+  //           id: value.id ?? key,
+  //           len: value.len ?? this.br,
+  //           ch: value.ch ?? 1,
+  //         })
+  //         const params = { ...value }
+  //         delete params.src
+  //         const src = await this.src('./' + (value.src ?? key) + '.js', {
+  //           id: key,
+  //           ...params,
+  //           buffer
+  //         })
+  //         return [key, buffer]
+  //       }))
+
+  //   return Object.fromEntries(entries)
+  // }
 
   // internals
 
@@ -3114,35 +3743,16 @@ class Context {
     this.k = this.p1 / this.br;
   }
 
-  // get checksum () {
-  //   return checksumOf(this)
-  // }
-
-  // set checksum (value) {
-  //   /* ignore */
-  // }
-
-  get bufferSize () { return this.buffer[0].length }
-
-  // get c () { return this }
-  // get sr () { return this.sampleRate }
-  // get br () { return this.beatRate }
+  get bufferSize () { return this.buffer[0].length*4 }
 
   toJSON () {
     const json = {};
-    // this.prepare()
     for (const key in this) {
       if (key[0] === '_') continue
       if (typeof this[key] !== 'function') {
         json[key] = this[key];
       }
     }
-    // delete json.g
-    // delete json.worker
-    // delete json.parent
-    // json.n = this.n
-    // json.frame = this.frame
-    // json.checksum = this.checksum
     return json
   }
 
@@ -3205,6 +3815,8 @@ const values = new Map;
 const ttlMap = new Map;
 
 const GlobalService = {
+  values,
+  ttlMap,
   methods: {
     get: id => {
       const value = values.get(id);
@@ -3233,10 +3845,10 @@ setInterval(() => {
     if (now > time + ttl) {
       ttlMap.delete(id);
       values.delete(id);
-      console.warn('gs gc:', id, ttl, [values.size]);
+      console.log('gs gc:', id, ttl, [values.size]);
     }
   }
-  if (values.size > 10) {
+  if (values.size > 30) {
     console.warn('gs: too many values:', values.size);
   }
 }, 1000);
@@ -3284,7 +3896,7 @@ class LoopPlayer {
   connect (destination) {
     this.node.connect(destination);
     this.buffer = Array(this.numberOfChannels).fill(0).map(() =>
-      new Shared32Array(this.node.bufferSize));
+      new Shared32Array$1(this.node.bufferSize));
     this.context = {
       n: 0,
       bpm: this.node.bpm, // NOTE: node.bpm !== this.bpm
@@ -3304,10 +3916,10 @@ class LoopPlayer {
 
     let n = this.context.n;
 
-    if (this.node.remainTime < this.avgRenderTime) {
-      console.warn(`[${this.name}] not enough time, trying for next buffer:`, this.node.remainTime, this.avgRenderTime);
-      n += this.buffer[0].length;
-    }
+    // if (this.node.remainTime < this.avgRenderTime) {
+    //   console.warn(`[${this.name}] not enough time, trying for next buffer:`, this.node.remainTime, this.avgRenderTime)
+    //   n += this.buffer[0].length
+    // }
     // console.log(this.node.remainTime)
 
     console.log(`[${this.name}] will render:`, n);
@@ -3324,10 +3936,10 @@ class LoopPlayer {
     //   return
     // }
 
-    if (this.mix.n < this.context.n) {
-      console.warn(`[${this.name}] too late, discard:`, this.mix.n, this.context.n);
-      return
-    }
+    // if (this.mix.n < this.context.n) {
+    //   console.warn(`[${this.name}] too late, discard:`, this.mix.n, this.context.n)
+    //   return
+    // }
 
     if (!this.playing) {
       console.warn(`[${this.name}] not playing, discard:`, n);
@@ -3382,7 +3994,7 @@ class DynamicCache {
   static async cleanup () {
     const cacheKeys = await window.caches.keys();
     await Promise.all(cacheKeys
-      .filter(key => key.startsWith('dynamic-cache:'))
+      // .filter(key => key.startsWith('dynamic-cache:')) //TODO: enable this in prod
       .map(key => window.caches.delete(key))
     );
   }
@@ -3436,12 +4048,24 @@ class DynamicCache {
 
 // ui
 
+let players;
+let shaders;
+let shader;
+
 const cache = new DynamicCache('projects', {
   'Content-Type': 'application/javascript'
 });
 cache.onchange = url => {
   console.log('cache put:', url);
-  mixWorker.update(url);
+  if (!url.includes('gl/')) {
+    mixWorker.update(url, false, true);
+    console.log('mix worker update:', url);
+  } else {
+    if (shader) {
+      url = new URL('shader.js', url).href;
+      shader.load(url);
+    }
+  }
 };
 
 mixWorker.onerror = (error, url) => {
@@ -3456,7 +4080,7 @@ const main = async (el) => {
     'actions',
     'browse',
   ]);
-  tabs.setActive(tabs.project);
+  // tabs.setActive(tabs.actions)
 
   const actionsMenu = new SelectMenu(tabs.actions, [
     {
@@ -3475,29 +4099,73 @@ const main = async (el) => {
     {
       id: 'start',
       text: 'Start New Project',
-      fn: () => {}
+      fn: async () => {
+        const result = await ask('New Project', 'Type name for new project', 'untitled');
+        if (result) {
+          editors.destroy();
+          editors = new Editors(el, result.value);
+          bindEditorsListeners(editors);
+          updateMixer();
+        }
+      }
     },
     {
-      id: 'import',
-      text: 'Import from File',
-      fn: () => {}
+      id: 'addtrack',
+      text: 'Add Track',
+      fn: async () => {
+        const result = await ask('Set track path/name', `path/name`, '');
+        if (result) {
+          const [dir, title] = result.value.split('/');
+
+          editors.addTrack({
+            title: dir + '/' + title,
+            value: 'export default c => 0',
+          });
+
+          editors.ensureModuleEditor(dir);
+
+          updateMixer();
+
+          players = null;
+        }
+      }
     },
     {
-      id: 'export',
-      text: 'Export to File',
-      fn: () => {}
+      id: 'addmodule',
+      text: 'Add Module',
+      fn: async () => {
+        const result = await ask('Set module path/name', `path/name`, '');
+        if (result) {
+          const [dir, title] = result.value.split('/');
+
+          const mod = {
+            title: dir + '/' + title,
+            value: 'export default c => 0',
+          };
+
+          editors.ensureModuleEditor(dir, mod);
+        }
+      }
     },
-    {
-      id: 'export',
-      text: 'Export to Audio',
-      fn: () => {}
-    },
+    // {
+    //   id: 'import',
+    //   text: 'Import from File',
+    //   fn: () => {}
+    // },
+    // {
+    //   id: 'export',
+    //   text: 'Export to File',
+    //   fn: () => {}
+    // },
+    // {
+    //   id: 'export',
+    //   text: 'Export to Audio',
+    //   fn: () => {}
+    // },
   ]);
 
-  const buttonPlayPause = new ButtonPlayPause(el);
-  const buttonSave = new ButtonSave(el);
-  const buttonLogo = new ButtonLogo(el);
-  const inputBpm = new InputBpm(el);
+  const toolbar = new Toolbar(el);
+  const { buttonPlayPause, buttonSave, buttonLogo, inputBpm } = toolbar;
 
   let editors;
   if (location.pathname.split('/').length === 3) {
@@ -3506,24 +4174,68 @@ const main = async (el) => {
     editors = await Editors.fromProject(el, './demos/drums');
   }
 
-  editors.onchange = file => {
-    cache.put(file.title, file.value);
-    buttonSave.enable();
+  const bindEditorsListeners = editors => {
+    editors.onfocus = editor => {
+      if (shader) {
+        shader.sources.editor?.setStream(editor.stream);
+      }
+    };
+
+    editors.onchange = file => {
+      cache.put(file.title, file.value);
+      buttonSave.enable();
+    };
+
+    editors.onrename = file => {
+      editors.onchange(file);
+      updateMixer();
+      console.log('renamed', file);
+    };
+
+    editors.onadd = file => {
+      editors.onchange(file);
+      updateMixer();
+    };
+
+    editors.onremove = file => {
+      editors.onchange(file);
+      updateMixer();
+    };
+
+    editors.ontoaddtrack = () => actionsMenu.addtrack.fn();
+    editors.ontoaddmodule = () => actionsMenu.addmodule.fn();
   };
+
+  bindEditorsListeners(editors);
 
   inputBpm.setValue(editors.project.bpm);
 
-  const mixer = new Mixer(tabs.project, editors.tracks);
-  mixer.onchange = track => {
-    if (track.player) {
-      track.player.setVolume(track.mute ? 0 : track.vol);
+  let mixer;
+
+  const updateMixer = () => {
+    if (mixer) {
+      mixer.destroy();
     }
+    mixer = new Mixer(tabs.project, editors.tracks);
+    mixer.onchange = track => {
+      if (track.player) {
+        track.player.setVolume(track.mute ? 0 : track.vol);
+      }
+    };
   };
 
-  let players;
+  updateMixer();
 
   const play = buttonPlayPause.onplay = async () => {
-    const audio = Audio();
+    const audio = Audio$1();
+
+    if (editors.tracks.find(track => track.title.endsWith('shader.js'))) {
+      shader = shader ?? new Shader(el, {
+        source: audio.gain,
+        stream: editors.tracksEditor.stream,
+      });
+    }
+
     const bpm = toFinite(+inputBpm.value);
     if (!players || players[0].bpm !== bpm) {
       await Promise.all([
@@ -3536,6 +4248,7 @@ const main = async (el) => {
       //mixWorker.scheduleUpdate.clear()
 
       players = editors.tracks
+        .filter(track => !track.title.endsWith('shader.js'))
         .map(track => {
           const player = new LoopPlayer(
             track.title,
@@ -3554,11 +4267,24 @@ const main = async (el) => {
         player.onerror = error => console.error(error);
       });
     }
+
+    if (!shaders) {
+      shaders = editors.tracks
+        .filter(track => track.title.includes('gl/'))
+        .map(track => {
+          shader.load(track.filename);
+          // TODO: shader volume->opacity
+        });
+    }
+
     players.forEach(player => player.start());
+
+    if (shader) shader.start();
   };
 
   const stop = buttonPlayPause.onpause = () => {
     players.forEach(player => player.stop(0));
+    if (shader) shader.stop();
     mixWorker.clear();
   };
 
@@ -3566,6 +4292,9 @@ const main = async (el) => {
     const title = editors.title;
 
     const bpm = toFinite(+inputBpm.value);
+
+    editors.tracks = editors.tracks.filter(track => !!track.value.trim());
+    editors.modules = editors.modules.filter(mod => !!mod.value.trim());
 
     const tracks = editors.tracks.map(track => ({
       title: track.title,
@@ -3603,37 +4332,9 @@ const main = async (el) => {
     );
   };
 
-  // setTimeout(async () => {
-  //   editors.destroy()
-  //   mixer.destroy()
-  //   const eds = await Editors.fromProject(el, './demos/piano')
-  //   new Mixer(el, eds.tracks)
-  // }, 5000)
-  tabs.setActive(tabs.browse);
-  actionsMenu.browse.fn();
+  tabs.setActive(tabs.project);
+
+  window.onresize = () => editors.resize();
 };
 
 main(container);
-
-/*
-
-TODO
-
-- editor titlebar buttons
-  - add editor
-    - prompt for name?
-  - remove editor
-  - move editor up/down
-  - move editor right/left
-  - play editor (shot play)
-  - play editor (loop play)?
-
-- shader api
-
-dependency tree tracking thru cache
-
-canvas server draw waveforms for browsing
-
-examine ideal same origin headers (chrome suggestion?)
-
-*/

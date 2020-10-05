@@ -141,7 +141,7 @@ app.use(express.static(PROJECTS_PATH, {
   maxAge: 1000 * 60 * 60 * 24 * 30 * 6
 }))
 
-app.use(express.text({ type: 'application/json' }))
+app.use(express.text({ type: 'application/json', limit: '5mb' }))
 
 app.post('/:project', async (req, res) => {
   const { project } = req.params

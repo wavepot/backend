@@ -1,6 +1,8 @@
 const dispatch = listeners => event =>
   listeners.forEach(fn => fn(event));
 
+const PAUSE_TIMEOUT = 10 * 1000; // 10 secs
+
 class SafeDynamicWorker {
   constructor (url) {
     this.url = url;
@@ -14,6 +16,8 @@ class SafeDynamicWorker {
       onmessageerror: [],
       onfail: []
     };
+
+    this.pause = this.pause.bind(this);
 
     this.updateInstance();
   }
@@ -68,6 +72,9 @@ class SafeDynamicWorker {
   }
 
   examineAck ({ data }) {
+    clearTimeout(this.timeout);
+    this.timeout = setTimeout(this.pause, PAUSE_TIMEOUT);
+
     if (data.ack) {
       this.pendingAckMessages =
       this.pendingAckMessages
@@ -91,6 +98,30 @@ class SafeDynamicWorker {
     this.worker = new Worker(this.url, { type: 'module' });
     this.bindListeners();
     this.retryMessages();
+
+    this.paused = false;
+    clearTimeout(this.timeout);
+    this.timeout = setTimeout(this.pause, PAUSE_TIMEOUT);
+  }
+
+  pause () {
+    try {
+      if (this.worker) {
+        this.worker.terminate();
+      }
+      this.worker = null;
+    } catch {}
+
+    try {
+      if (this.safe) {
+        this.safe.terminate();
+      }
+      this.safe = null;
+    } catch {}
+
+    this.paused = true;
+    this.onpause();
+    console.log('worker paused: ', this.url);
   }
 
   bindListeners () {
@@ -106,6 +137,9 @@ class SafeDynamicWorker {
   }
 
   postMessage (message, transfer) {
+    clearTimeout(this.timeout);
+    this.timeout = setTimeout(this.pause, PAUSE_TIMEOUT);
+
     const payload = {
       ackId: ++this.ackId,
       message
@@ -142,7 +176,7 @@ const rpcs = new Map;
 
 const rpc = (url, method, args = []) => getRpc(url).rpc(method, args);
 rpc.get = url => getRpc(url);
-rpc.update = url => getRpc(url).worker.updateInstance();
+rpc.update = (url, noCreate = false) => getRpc(url, noCreate)?.worker?.updateInstance();
 rpc.markAsSafe = url => getRpc(url).worker.markAsSafe();
 rpc.clear = () => rpcs.clear();
 rpc.clearHanging = error => { [...callbacks.values()].forEach(fn => fn.reject(error)), callbacks.clear(); };
@@ -167,6 +201,8 @@ class Rpc {
         this.worker = new SafeDynamicWorker(url);
         workers.set(url, this.worker);
         this.bindListeners();
+      } else if (this.worker.paused) {
+        this.worker.updateInstance();
       }
     }
   }
@@ -179,9 +215,10 @@ class Rpc {
       }
       this[data.call](data);
     };
-    this.worker.onmessageerror = error => rpc.onmessageerror?.(error, url);
-    this.worker.onerror = error => rpc.onerror?.(error, url);
-    this.worker.onfail = fail => rpc.onfail?.(fail, url);
+    this.worker.onmessageerror = error => rpc.onmessageerror?.(error, this.url);
+    this.worker.onerror = error => rpc.onerror?.(error, this.url);
+    this.worker.onfail = fail => rpc.onfail?.(fail, this.url);
+    this.worker.onpause = () => rpcs.delete(this.url);
   }
 
   async proxyRpc ({ url, callbackId, method, args }) {
@@ -263,10 +300,13 @@ class RpcProxy {
   }
 }
 
-const getRpc = url => {
+const getRpc = (url, noCreate = false) => {
   url = new URL(url, location.href).href;
   if (isMain) {
-    if (!rpcs.has(url)) rpcs.set(url, new Rpc(url));
+    if (!rpcs.has(url)) {
+      if (noCreate) return
+      rpcs.set(url, new Rpc(url));
+    }
     return rpcs.get(url)
   } else {
     return new RpcProxy(url)
@@ -316,7 +356,6 @@ const install = self => {
         replyTo: data.message.callbackId,
         error
       });
-      // self.postMessage({ call: 'onerror', error })
     }
   };
 
@@ -359,6 +398,7 @@ const garbageCollect = match => {
 };
 
 const BufferService = {
+  buffers,
   methods: {
     getBuffer: (checksum, size, channels = 2) => {
       const id = (checksum + size + channels).toString();

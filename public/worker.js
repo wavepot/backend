@@ -2433,17 +2433,16 @@ var themes = [{
     // number: "#95e124", //"#fff", //"#f2e700", //"#fff", //"#ff69fe",
     number: '#00f3b2', // "#13bcff", //"#0f0", //"#ff69fe",
     string: "#bf828a",// "#ff69fe", //"#f2e700",
-    comment: "#373174",
+    comment: "#6761b4",
     symbol: '#6047ff',// '#626288', //, '#6262f2',
     meta: "#555",
     tag: "#bc6283",
-    mark: '#252525',
-    gutter: '#000',
+    gutter: 'transparent',
     caret: '#fff',
-    titlebar: '#000', //'#303030',
+    titlebar: '#000', //rgba(0,0,50,.2)', //'#303030',
     title: '#fff',
-    scrollbar: '#112', //'#3f30af',
-    lineNumbers: '#000' //'#556'
+    scrollbar: 'rgba(120,120,255,.17)', //', //'#3f30af',
+    lineNumbers: 'transparent' //'#556'
   }
 // }, {
 //   id: "wavepot",
@@ -2662,7 +2661,7 @@ const isWorker = typeof window === 'undefined' && typeof postMessage !== 'undefi
 const colors = {
   background: '#000',
   text: '#fff',
-  mark: '#449',
+  mark: '#43b',
   caret: '#f4f4f4',
   gutter: '#333',
   scrollbar: '#555',
@@ -2816,6 +2815,7 @@ class Editor {
     this.canvas.gutter = new OffscreenCanvas(width, height);
     this.canvas.title = new OffscreenCanvas(width, height);
     this.canvas.mark = new OffscreenCanvas(width, height);
+    this.canvas.back = new OffscreenCanvas(width, height);
     this.canvas.text = new OffscreenCanvas(width, height);
     this.canvas.debug = new OffscreenCanvas(width, height);
     this.canvas.scroll = { width: this.canvas.width, height: this.canvas.height };
@@ -2825,6 +2825,7 @@ class Editor {
     this.ctx.gutter = this.canvas.gutter.getContext('2d');
     this.ctx.title = this.canvas.title.getContext('2d');
     this.ctx.mark = this.canvas.mark.getContext('2d');
+    this.ctx.back = this.canvas.back.getContext('2d');
     this.ctx.text = this.canvas.text.getContext('2d');
     this.ctx.debug = this.canvas.debug.getContext('2d');
     // this.ctx.debug.scale(this.canvas.pixelRatio, this.canvas.pixelRatio)
@@ -2960,6 +2961,7 @@ class Editor {
     this.updateSizes(true);
     this.updateText();
     this.draw();
+    this.postMessage({ ...editor.toJSON(), call: 'onadd' });
   }
 
   setTitle (title) {
@@ -2970,19 +2972,50 @@ class Editor {
     this.draw();
   }
 
-  renameEditor ({ id, title }) {
+  deleteEditor ({ id }) {
+    let data;
     if (id === this.id) {
-      this.title = title;
-      this.updateTitle();
+      data = this.toJSON();
+      if (this.subEditors.length) {
+        const editor = this.subEditors.shift();
+        this.id = editor.id;
+        this.title = editor.title;
+        this.setText(editor.value);
+      } else {
+        data = null;
+        this.setText('');
+      }
     } else {
-      const subEditor = this.subEditors
+      const subEditor = data = this.subEditors
         .find(editor => editor.id === id);
-      subEditor.title = title;
-      subEditor.updateTitle();
+      this.subEditors.splice(this.subEditors.indexOf(subEditor), 1);
+      data = data.toJSON();
     }
     this.updateSizes(true);
     this.updateText();
     this.draw();
+    if (data) this.postMessage({ ...data, call: 'onremove' });
+  }
+
+  renameEditor ({ id, title }) {
+    let data, prevTitle;
+    if (id === this.id) {
+      prevTitle = this.title;
+      this.title = title;
+      this.updateTitle();
+      data = this.toJSON();
+    } else {
+      const subEditor = this.subEditors
+        .find(editor => editor.id === id);
+      prevTitle = subEditor.title;
+      subEditor.title = title;
+      subEditor.updateTitle();
+      data = subEditor.toJSON();
+    }
+    this.updateSizes(true);
+    this.updateText();
+    this.draw();
+    if (data) this.postMessage({ ...data, prevTitle, call: 'onrename' });
   }
 
   restoreHistory (history) {
@@ -3501,7 +3534,7 @@ class Editor {
 
   setCaret (pos) {
     const prevCaretPos = this.caret.pos.copy();
-    this.caret.pos.set(pos);
+    this.caret.pos.set(Point.low({ x:0, y:0 }, pos));
     const px = this.getCharPxFromPoint(this.caret.pos);
     const { tabs } = this.getPointTabs(this.caret.pos);
     this.caret.px.set({
@@ -3574,6 +3607,7 @@ class Editor {
       this.gutter.size = (1 + this.sizes.loc).toString().length;
       this.gutter.width = this.gutter.size * this.char.width + this.gutter.padding;
 
+      this.canvas.back.height =
       this.canvas.text.height =
         (this.canvas.padding * this.canvas.pixelRatio) * 2
       + ((1 + this.sizes.loc) * this.char.px.height);// line.height)
@@ -3636,6 +3670,7 @@ class Editor {
       changed = true;
       this.sizes.longestLineLength = longestLineLength;
 
+      this.canvas.back.width =
       this.canvas.text.width = (
         this.sizes.longestLineLength
       * this.char.width
@@ -3670,6 +3705,7 @@ class Editor {
       this.scrollbar.vert = this.scrollbar.scale.height * this.scrollbar.view.height;
 
       this.ctx.text.scale(this.canvas.pixelRatio, this.canvas.pixelRatio);
+      this.ctx.back.scale(this.canvas.pixelRatio, this.canvas.pixelRatio);
 
       this.canvas.title.width = this.canvas.width;
       this.updateTitle();
@@ -3719,28 +3755,83 @@ class Editor {
   }
 
   updateText () {
-    const { text } = this.ctx;
+    const { text, back } = this.ctx;
 
     this.applyFont(text);
+    back.clearRect(0, 0, this.canvas.text.width, this.canvas.text.height);
     text.clearRect(0, 0, this.canvas.text.width, this.canvas.text.height);
     text.fillStyle = theme.text;
 
-    const pieces = this.syntax.highlight(this.buffer.toString());
+    const code = this.buffer.toString();
+    const pieces = this.syntax.highlight(code);
+    const fh = this.line.height; //Math.ceil(this.line.height)
+    let i = 0, x = 0, y = 0, lastNewLine = 0, idx = 0;
+    // text.fillStyle = '#000'
+    // for (const line of code.split('\n')) {
+    //   y = this.canvas.padding + i * this.line.height
 
-    let i = 0, x = 0, y = 0, lastNewLine = 0;
+    //   for (let sx = 1; sx <= 2; sx++) {
+    //     for (let sy = 1; sy <= 2; sy ++) {
+    //       // text.fillText(string, x+sx, y)
+    //       // text.fillText(string, x-sx, y)
+    //       text.fillText(line, x+sx, y+sy)
+    //       text.fillText(line, x+sx, y-sy)
+
+    //       // text.fillText(string, x, y+sy)
+    //       // text.fillText(string, x, y-sy)
+    //       text.fillText(line, x-sx, y+sy)
+    //       text.fillText(line, x-sx, y-sy)
+    //     }
+    //   }
+
+    //   i++
+    // }
+
+    // i = 0, x = 0, y = 0, lastNewLine = 0
+    const queue = [];
     for (const [type, string, index] of pieces.values()) {
       y = this.canvas.padding + i * this.line.height;
 
+      idx = index;
+
       if (type === 'newline') {
+        back.fillStyle = 'rgba(0,0,0,.7)';
+        back.fillRect(0, y, this.char.width * (index - lastNewLine) + 4, fh);
+
+        for (const [type, string, x, y] of queue) {
+          text.fillStyle = theme[type];
+          text.fillText(string, x, y);
+        }
+        queue.length = 0;
+
         lastNewLine = index + 1;
+
+        // AnyChar.lastIndex = 0
+
         i++;
         continue
       }
 
-      text.fillStyle = theme[type];
       x = (index - lastNewLine) * this.char.width + this.gutter.padding;
 
-      text.fillText(string, x, y);
+      queue.push([type, string, x, y]);
+      // // AnyChar.lastIndex = 0
+
+      // text.fillStyle = 'rgba(0,0,0,.65)'
+      // text.fillRect(x + (AnyChar.exec(string)?.index * this.char.width), y, this.char.width * string.trim().length, fh)
+
+      // text.fillStyle = theme[type]
+      // text.fillText(string, x, y)
+    }
+
+    if (queue.length) {
+      back.fillStyle = 'rgba(0,0,0,.7)';
+      back.fillRect(0, y, this.char.width * (idx - lastNewLine + queue[queue.length-1][1].length) + 4, fh);
+      // text.fillRect(0, y, this.char.width * string.length + 4, fh)
+      for (const [type, string, x, y] of queue) {
+        text.fillStyle = theme[type];
+        text.fillText(string, x, y);
+      }
     }
   }
 
@@ -3836,13 +3927,26 @@ class Editor {
 
   clear () {
     // clear
-    this.ctx.outer.fillStyle = theme.background;
-    this.ctx.outer.fillRect(
-      0,
-      0,
-      this.canvas.width,
-      this.canvas.height
-    );
+    // this.ctx.outer.fillStyle = 'transparent' //theme.background
+    // this.ctx.outer.fillRect(
+    //   0,
+    //   0,
+    //   this.canvas.width,
+    //   this.canvas.height
+    // )
+    Object.assign(this.canvas.outer, {
+      width: this.canvas.width,
+      height: this.canvas.height
+    });
+    // this.canvas.outer.width = this.canvas.width
+    // this.canvas.outer.height = this.canvas.height
+
+    // this.ctx.outer.clearRect(
+    //   0,
+    //   0,
+    //   this.canvas.width,
+    //   this.canvas.height
+    // )
   }
 
   drawTitle () {
@@ -3865,6 +3969,26 @@ class Editor {
     //   2.5 + Math.max(0, this.offsetTop / this.canvas.pixelRatio)
     // )
     // this.ctx.outer.restore()
+  }
+
+  drawBack () {
+    // draw back layer
+
+    const clipTop = Math.max(0, -this.offsetTop);
+
+    this.ctx.outer.drawImage(
+      this.canvas.back,
+
+      this.scroll.pos.x, // sx
+      this.scroll.pos.y + clipTop, // - this.offsetTop, // - this.offsetTop, // sy
+      this.view.width, // sw
+      this.view.height - this.offsetTop - clipTop, // sh
+
+      this.view.left, // dx
+      Math.max(0, this.view.top + this.offsetTop + clipTop), // dy
+      this.view.width, // dw
+      this.view.height - this.offsetTop - clipTop // dh
+    );
   }
 
   drawText () {
@@ -4069,6 +4193,7 @@ class Editor {
       this.drawHorizScrollbar();
       this.subEditors.forEach(editor => editor.isVisible && editor.drawHorizScrollbar());
     }
+    this.drawBack();
     if (this.markActive) this.drawMark();
     if (this.controlEditor.focusedEditor === this && this.hasFocus) {
       this.drawCaret();
@@ -4087,6 +4212,7 @@ class Editor {
         0, 0
         // this.c
       );
+      this.postMessage({ call: 'ondraw' });
     }
   }
 
@@ -4686,6 +4812,11 @@ class Editor {
       this.controlEditor.focusedEditor = this;
       this.controlEditor.hasFocus = true;
     }
+    this.postMessage({
+      call: 'onfocus',
+      id: this.controlEditor.focusedEditor.id,
+      title: this.controlEditor.focusedEditor.title
+    });
     this.controlEditor.draw();
   }
 
@@ -4701,6 +4832,7 @@ class Editor {
     this.updateSizes(true);
     this.updateText();
     this.drawSync();
+    postMessage({ call: 'onresize' });
   }
 }
 
