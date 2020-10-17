@@ -1,15 +1,13 @@
-const PI = Math.PI
-const TAU = 2*PI
-export default (t='s') => {
-  const sin = (c,x) => Math.sin(c[t]*x*TAU)
-  const saw = (c,x) => 1-2*(c[t]%(1/x))*x
-  const ramp = (c,x) => 2*(c[t]%(1/x))*x-1
-  const tri = (c,x) => Math.abs(1-(2*c[t]*x)%2)*2-1
-  const sqr = (c,x) => (c[t]*x%1/x<1/x/2)*2-1
-  const pulse = (c,x,w=.5) => (c[t]*x%1/x<1/x/2*w)*2-1
-  const noise = (c,x=123456) => {
-    x=Math.sin(x+c.p)*100000
-    return (x-Math.floor(x))*2-1
-  }
-  return { sin, saw, ramp, tri, sqr, pulse, noise }
+const O = {}
+O.sin   = function (x=1) { return Math.sin(this * x * Math.PI * 2) }
+O.cos   = function (x=1) { return Math.cos(this * x * Math.PI * 2) }
+O.tri   = function (x=1) { return Math.abs(1-(2*this*x)%2)*2-1 }
+O.saw   = function (x=1) { return 1-2*(this%(1/x))*x   }
+O.ramp  = function (x=1) { return   2*(this%(1/x))*x-1 }
+O.sqr   = function (x=1) { return      (this*x%1/x<1/x/2  )*2-1 }
+O.pulse = function (x=1,w=.9) { return (this*x%1/x<1/x/2*w)*2-1 }
+O.noise = function (x=1) {
+  x=Math.sin(x+this)*10e4
+  return (x-Math.floor(x))*2-1
 }
+export default O

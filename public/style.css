@@ -35,6 +35,10 @@ html, body {
 }
 
 .editor {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 1;
 }
 
 .prompt {
@@ -73,4 +77,12 @@ html, body {
 .prompt .buttons {
   margin: 5px;
   text-align: right;
+}
+
+.back-canvas {
+  pointer-events: none;
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 0;
 }

@@ -68,8 +68,6 @@ var ask = (title, text, defaultValue) => {
 
 const isMac = /Mac|iPod|iPhone|iPad/.test(navigator.platform);
 const pixelRatio = window.devicePixelRatio;
-
-let ignore = false;
 let selectionText = '';
 let textarea;
 
@@ -151,6 +149,22 @@ class Editor {
     this.onsetup?.();
   }
 
+  focus () {
+    this.handleEvent('mouse', 'click');
+    this._onfocus();
+  }
+
+  update (fn) {
+    this.onupdate = fn;
+    this.worker.postMessage({ call: 'update' });
+  }
+
+  _onupdate (data) {
+    Object.assign(this, data);
+    Object.assign(this.data, data);
+    this.onupdate?.(data);
+  }
+
   async _onchange (data) {
     Object.assign(this, data);
     Object.assign(this.data, data);
@@ -178,9 +192,9 @@ class Editor {
     this.onremove?.(data);
   }
 
-  _onhistory (history) {
-    this.history = history;
-  }
+  // _onhistory (history) {
+  //   this.history = history
+  // }
 
   _onfocus (editor) {
     this.focusedEditor = editor;
@@ -302,6 +316,7 @@ const methods = {};
 const registerEvents = (parent) => {
   textarea = document.createElement('textarea');
   textarea.style.position = 'fixed';
+  textarea.style.zIndex = 1000;
   // textarea.style.left = (e.clientX ?? e.pageX) + 'px'
   // textarea.style.top = (e.clientY ?? e.pageY) + 'px'
   textarea.style.width = '100px';
@@ -316,32 +331,32 @@ const registerEvents = (parent) => {
   textarea.spellchecking = 'off';
   textarea.value = 0;
 
-  const createUndoRedo = methods.createUndoRedo = () => {
-    // create undo/redo capability
-    ignore = true;
-    textarea.focus();
-    textarea.select();
-    document.execCommand('insertText', false, 1);
-    textarea.select();
-    document.execCommand('insertText', false, 2);
-    document.execCommand('undo', false);
-    textarea.selectionStart = -1;
-    textarea.selectionEnd = -1;
-    ignore = false;
-  };
+  // const createUndoRedo = methods.createUndoRedo = () => {
+  //   // create undo/redo capability
+  //   ignore = true
+  //   textarea.focus()
+  //   textarea.select()
+  //   document.execCommand('insertText', false, 1)
+  //   textarea.select()
+  //   document.execCommand('insertText', false, 2)
+  //   document.execCommand('undo', false)
+  //   textarea.selectionStart = -1
+  //   textarea.selectionEnd = -1
+  //   ignore = false
+  // }
 
-  const removeUndoRedo = methods.removeUndoRedo = () => {
-    // remove undo/redo capability
-    ignore = true;
-    textarea.focus();
-    textarea.select();
-    document.execCommand('undo', false);
-    // document.execCommand('undo', false)
-    // document.execCommand('undo', false)
-    textarea.selectionStart = -1;
-    textarea.selectionEnd = -1;
-    // ignore = false
-  };
+  // const removeUndoRedo = methods.removeUndoRedo = () => {
+  //   // remove undo/redo capability
+  //   ignore = true
+  //   textarea.focus()
+  //   textarea.select()
+  //   document.execCommand('undo', false)
+  //   // document.execCommand('undo', false)
+  //   // document.execCommand('undo', false)
+  //   textarea.selectionStart = -1
+  //   textarea.selectionEnd = -1
+  //   // ignore = false
+  // }
 
   textarea.oncut = e => {
     e.preventDefault();
@@ -363,52 +378,52 @@ const registerEvents = (parent) => {
     events.targets?.focus?.worker.postMessage({ call: 'onpaste', text });
   };
 
-  textarea.oninput = e => {
-    if (ignore) return
+  // textarea.oninput = e => {
+  //   if (ignore) return
+  //   ignore = true
+  //   const editor = events.targets.focus
+  //   const needle = +textarea.value
 
-    ignore = true;
-    const editor = events.targets.focus;
-    const needle = +textarea.value;
-    if (needle === 0) { // is undo
-      document.execCommand('redo', false);
-      if (editor?.history) {
-        if (editor.history.needle > 1) {
-          editor.history.needle--;
-          editor.worker.postMessage({
-            call: 'onhistory',
-            needle: editor.history.needle
-          });
-        }
-      }
-    } else if (needle === 2) { // is redo
-      document.execCommand('undo', false);
-      if (editor?.history) {
-        if (editor.history.needle < editor.history.log.length) {
-          editor.history.needle++;
-          editor.worker.postMessage({
-            call: 'onhistory',
-            needle: editor.history.needle
-          });
-        }
-      }
-    }
-    ignore = false;
-    // if (needle !== history.needle) {
-    //   if (needle >= 1) {
-    //     history.needle = needle
-    //     textarea.selectionStart = -1
-    //     textarea.selectionEnd = -1
-    //     events.targets?.focus?.postMessage({ call: 'onhistory', needle })
-    //     // app.storeHistory(editor, history)
-    //   } else {
-    //     document.execCommand('redo', false)
-    //   }
-    // }
-    // document.execCommand('redo', false)
+  //   if (needle === 0) { // is undo
+  //     document.execCommand('redo', false)
+  //     if (editor?.history) {
+  //       if (editor.history.needle > 1) {
+  //         editor.history.needle--
+  //         editor.worker.postMessage({
+  //           call: 'onhistory',
+  //           needle: editor.history.needle
+  //         })
+  //       }
+  //     }
+  //   } else if (needle === 2) { // is redo
+  //     document.execCommand('undo', false)
+  //     if (editor?.history) {
+  //       if (editor.history.needle < editor.history.log.length) {
+  //         editor.history.needle++
+  //         editor.worker.postMessage({
+  //           call: 'onhistory',
+  //           needle: editor.history.needle
+  //         })
+  //       }
+  //     }
+  //   }
+  //   ignore = false
+  //   // if (needle !== history.needle) {
+  //   //   if (needle >= 1) {
+  //   //     history.needle = needle
+  //   //     textarea.selectionStart = -1
+  //   //     textarea.selectionEnd = -1
+  //   //     events.targets?.focus?.postMessage({ call: 'onhistory', needle })
+  //   //     // app.storeHistory(editor, history)
+  //   //   } else {
+  //   //     document.execCommand('redo', false)
+  //   //   }
+  //   // }
+  //   // document.execCommand('redo', false)
 
-    textarea.selectionStart = -1;
-    textarea.selectionEnd = -1;
-  };
+  //   textarea.selectionStart = -1
+  //   textarea.selectionEnd = -1
+  // }
 
   const targetHandler = (e, type) => {
     // if (ignore) return
@@ -431,6 +446,7 @@ const registerEvents = (parent) => {
 
   const events = methods.events = {
     ignore: false,
+    textarea,
     targets: {},
     setTarget (type, target, e) {
       const previous = this.targets[type];
@@ -592,12 +608,12 @@ const eventHandlers = {
     if (textarea) {
       if (eventName === 'onmouseenter') {
         document.body.appendChild(textarea);
-        methods.createUndoRedo();
+        // methods.createUndoRedo()
         textarea.style.pointerEvents = 'all';
         textarea.focus();
       } else if (eventName === 'onmouseout') {
         textarea.style.pointerEvents = 'none';
-        methods.removeUndoRedo();
+        // methods.removeUndoRedo()
         document.body.removeChild(textarea);
         textarea.blur();
       }
@@ -632,8 +648,8 @@ const eventHandlers = {
     } = e;
     const cmdKey = isMac ? metaKey : ctrlKey;
     if (cmdKey && key === 'r') return false
-    if (cmdKey && key === 'z') return false
-    if (cmdKey && key === 'y') return false
+    // if (cmdKey && key === 'z') return false
+    // if (cmdKey && key === 'y') return false
     if (cmdKey && key === 'c') return false
     if (cmdKey && key === 'x') return false
     if (cmdKey && (key === 'v' || key === 'V')) return false

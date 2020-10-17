@@ -16,6 +16,11 @@ CONNECTION WITH THE SOFTWARE OR THE DISTRIBUTION OF THE SOFTWARE.
 let sampleRate = 44100
 
 export default class DattorroReverb {
+  static TapDelays = [
+    0.004771345, 0.003595309, 0.012734787, 0.009307483,
+    0.022579886, 0.149625349, 0.060481839, 0.124995800,
+    0.030509727, 0.141695508, 0.089244313, 0.106280031
+  ]
 
   static get parameterDescriptors() {
     return [
@@ -158,8 +163,6 @@ export default class DattorroReverb {
     //   );
     // }
 
-    let out = 0
-
     let i = 0|0;
     // while (i < 128) {
       let lo = 0.0,
@@ -209,7 +212,7 @@ export default class DattorroReverb {
         - this.readDelayAt(10, this._taps[12])
         - this.readDelayAt(11, this._taps[13]);
 
-      out += (lo + ro) * we * .5
+      let out = x0*dr + (lo+ro)*we*.5
       // outputs[0][0][i] += lo * we;
       // outputs[0][1][i] += ro * we;
 

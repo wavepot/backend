@@ -68,8 +68,6 @@ var ask = (title, text, defaultValue) => {
 
 const isMac = /Mac|iPod|iPhone|iPad/.test(navigator.platform);
 const pixelRatio = window.devicePixelRatio;
-
-let ignore = false;
 let selectionText = '';
 let textarea;
 
@@ -151,6 +149,22 @@ class Editor {
     this.onsetup?.();
   }
 
+  focus () {
+    this.handleEvent('mouse', 'click');
+    this._onfocus();
+  }
+
+  update (fn) {
+    this.onupdate = fn;
+    this.worker.postMessage({ call: 'update' });
+  }
+
+  _onupdate (data) {
+    Object.assign(this, data);
+    Object.assign(this.data, data);
+    this.onupdate?.(data);
+  }
+
   async _onchange (data) {
     Object.assign(this, data);
     Object.assign(this.data, data);
@@ -178,9 +192,9 @@ class Editor {
     this.onremove?.(data);
   }
 
-  _onhistory (history) {
-    this.history = history;
-  }
+  // _onhistory (history) {
+  //   this.history = history
+  // }
 
   _onfocus (editor) {
     this.focusedEditor = editor;
@@ -302,6 +316,7 @@ const methods = {};
 const registerEvents = (parent) => {
   textarea = document.createElement('textarea');
   textarea.style.position = 'fixed';
+  textarea.style.zIndex = 1000;
   // textarea.style.left = (e.clientX ?? e.pageX) + 'px'
   // textarea.style.top = (e.clientY ?? e.pageY) + 'px'
   textarea.style.width = '100px';
@@ -316,32 +331,32 @@ const registerEvents = (parent) => {
   textarea.spellchecking = 'off';
   textarea.value = 0;
 
-  const createUndoRedo = methods.createUndoRedo = () => {
-    // create undo/redo capability
-    ignore = true;
-    textarea.focus();
-    textarea.select();
-    document.execCommand('insertText', false, 1);
-    textarea.select();
-    document.execCommand('insertText', false, 2);
-    document.execCommand('undo', false);
-    textarea.selectionStart = -1;
-    textarea.selectionEnd = -1;
-    ignore = false;
-  };
+  // const createUndoRedo = methods.createUndoRedo = () => {
+  //   // create undo/redo capability
+  //   ignore = true
+  //   textarea.focus()
+  //   textarea.select()
+  //   document.execCommand('insertText', false, 1)
+  //   textarea.select()
+  //   document.execCommand('insertText', false, 2)
+  //   document.execCommand('undo', false)
+  //   textarea.selectionStart = -1
+  //   textarea.selectionEnd = -1
+  //   ignore = false
+  // }
 
-  const removeUndoRedo = methods.removeUndoRedo = () => {
-    // remove undo/redo capability
-    ignore = true;
-    textarea.focus();
-    textarea.select();
-    document.execCommand('undo', false);
-    // document.execCommand('undo', false)
-    // document.execCommand('undo', false)
-    textarea.selectionStart = -1;
-    textarea.selectionEnd = -1;
-    // ignore = false
-  };
+  // const removeUndoRedo = methods.removeUndoRedo = () => {
+  //   // remove undo/redo capability
+  //   ignore = true
+  //   textarea.focus()
+  //   textarea.select()
+  //   document.execCommand('undo', false)
+  //   // document.execCommand('undo', false)
+  //   // document.execCommand('undo', false)
+  //   textarea.selectionStart = -1
+  //   textarea.selectionEnd = -1
+  //   // ignore = false
+  // }
 
   textarea.oncut = e => {
     e.preventDefault();
@@ -363,52 +378,52 @@ const registerEvents = (parent) => {
     events.targets?.focus?.worker.postMessage({ call: 'onpaste', text });
   };
 
-  textarea.oninput = e => {
-    if (ignore) return
+  // textarea.oninput = e => {
+  //   if (ignore) return
+  //   ignore = true
+  //   const editor = events.targets.focus
+  //   const needle = +textarea.value
 
-    ignore = true;
-    const editor = events.targets.focus;
-    const needle = +textarea.value;
-    if (needle === 0) { // is undo
-      document.execCommand('redo', false);
-      if (editor?.history) {
-        if (editor.history.needle > 1) {
-          editor.history.needle--;
-          editor.worker.postMessage({
-            call: 'onhistory',
-            needle: editor.history.needle
-          });
-        }
-      }
-    } else if (needle === 2) { // is redo
-      document.execCommand('undo', false);
-      if (editor?.history) {
-        if (editor.history.needle < editor.history.log.length) {
-          editor.history.needle++;
-          editor.worker.postMessage({
-            call: 'onhistory',
-            needle: editor.history.needle
-          });
-        }
-      }
-    }
-    ignore = false;
-    // if (needle !== history.needle) {
-    //   if (needle >= 1) {
-    //     history.needle = needle
-    //     textarea.selectionStart = -1
-    //     textarea.selectionEnd = -1
-    //     events.targets?.focus?.postMessage({ call: 'onhistory', needle })
-    //     // app.storeHistory(editor, history)
-    //   } else {
-    //     document.execCommand('redo', false)
-    //   }
-    // }
-    // document.execCommand('redo', false)
+  //   if (needle === 0) { // is undo
+  //     document.execCommand('redo', false)
+  //     if (editor?.history) {
+  //       if (editor.history.needle > 1) {
+  //         editor.history.needle--
+  //         editor.worker.postMessage({
+  //           call: 'onhistory',
+  //           needle: editor.history.needle
+  //         })
+  //       }
+  //     }
+  //   } else if (needle === 2) { // is redo
+  //     document.execCommand('undo', false)
+  //     if (editor?.history) {
+  //       if (editor.history.needle < editor.history.log.length) {
+  //         editor.history.needle++
+  //         editor.worker.postMessage({
+  //           call: 'onhistory',
+  //           needle: editor.history.needle
+  //         })
+  //       }
+  //     }
+  //   }
+  //   ignore = false
+  //   // if (needle !== history.needle) {
+  //   //   if (needle >= 1) {
+  //   //     history.needle = needle
+  //   //     textarea.selectionStart = -1
+  //   //     textarea.selectionEnd = -1
+  //   //     events.targets?.focus?.postMessage({ call: 'onhistory', needle })
+  //   //     // app.storeHistory(editor, history)
+  //   //   } else {
+  //   //     document.execCommand('redo', false)
+  //   //   }
+  //   // }
+  //   // document.execCommand('redo', false)
 
-    textarea.selectionStart = -1;
-    textarea.selectionEnd = -1;
-  };
+  //   textarea.selectionStart = -1
+  //   textarea.selectionEnd = -1
+  // }
 
   const targetHandler = (e, type) => {
     // if (ignore) return
@@ -431,6 +446,7 @@ const registerEvents = (parent) => {
 
   const events = methods.events = {
     ignore: false,
+    textarea,
     targets: {},
     setTarget (type, target, e) {
       const previous = this.targets[type];
@@ -592,12 +608,12 @@ const eventHandlers = {
     if (textarea) {
       if (eventName === 'onmouseenter') {
         document.body.appendChild(textarea);
-        methods.createUndoRedo();
+        // methods.createUndoRedo()
         textarea.style.pointerEvents = 'all';
         textarea.focus();
       } else if (eventName === 'onmouseout') {
         textarea.style.pointerEvents = 'none';
-        methods.removeUndoRedo();
+        // methods.removeUndoRedo()
         document.body.removeChild(textarea);
         textarea.blur();
       }
@@ -632,8 +648,8 @@ const eventHandlers = {
     } = e;
     const cmdKey = isMac ? metaKey : ctrlKey;
     if (cmdKey && key === 'r') return false
-    if (cmdKey && key === 'z') return false
-    if (cmdKey && key === 'y') return false
+    // if (cmdKey && key === 'z') return false
+    // if (cmdKey && key === 'y') return false
     if (cmdKey && key === 'c') return false
     if (cmdKey && key === 'x') return false
     if (cmdKey && (key === 'v' || key === 'V')) return false
@@ -651,160 +667,79 @@ const eventHandlers = {
   }
 };
 
-class LoopNode {
-  constructor ({ bpm = null, numberOfChannels = 2 } = {}) {
-    this.currentBufferIndex = 0;
-    this.offsetTime = 0;
-    this.numberOfChannels = numberOfChannels;
-    if (bpm) this.setBpm(bpm);
-  }
-
-  get bpm () {
-    return parseFloat(
-      (60 * (
-        this.sampleRate
-      / getBeatRate(this.sampleRate, this._bpm)
-      )
-    ).toFixed(6))
-  }
-
-  get beatRate () {
-    return getBeatRate(this.sampleRate, this.bpm)
-  }
-
-  get currentTime () {
-    return this.context.currentTime - this.offsetTime
-  }
-
-  get sampleRate () {
-    return this.context.sampleRate
-  }
-
-  get barTime () {
-    return this.bufferSize / this.sampleRate
-  }
-
-  get remainTime () {
-    const bar = this.barTime;
-    const time = this.currentTime;
-    const remain = bar - (time % bar);
-    return remain
-  }
-
-  get syncTime () {
-    const bar = this.barTime;
-    const time = this.currentTime;
-    const remain = bar - (time % bar);
-    return time + remain + this.offsetTime
-  }
-
-  get bufferSize () {
-    return this.beatRate * 4
-  }
-
-  resetTime (offset = 0) {
-    this.offsetTime = this.context.currentTime + offset;
-  }
-
-  setBpm (bpm) {
-    this._bpm = bpm;
-  }
-
-  _onended () {
-    this.gain.disconnect();
-    this.playingNode?.disconnect();
-    this.onended?.();
-  }
-
-  connect (destination) {
-    this.context = destination.context;
-    this.destination = destination;
-    this.gain = this.context.createGain();
-    this.audioBuffers = [1,2].map(() =>
-      this.context.createBuffer(
-        this.numberOfChannels,
-        this.bufferSize,
-        this.sampleRate
-      )
-    );
-    this.nextBuffer = this.audioBuffers[0];
-  }
-
-  _onbar () {
-    if (!this.playing) return
-    if (this.scheduledNode) {
-      this.playingNode = this.scheduledNode;
-      this.scheduledNode = null;
-      this.currentBufferIndex = 1 - this.currentBufferIndex;
-      this.nextBuffer = this.audioBuffers[this.currentBufferIndex];
-    }
-    this.scheduleNextBar();
-    this.onbar?.();
-  }
-
-  scheduleNextBar (syncTime = this.syncTime) {
-    const bar = this.context.createConstantSource();
-    bar.onended = () => this._onbar();
-    bar.start();
-    bar.stop(syncTime);
-  }
-
-  playBuffer (buffer) {
-    const syncTime = this.syncTime;
-    const output = this.nextBuffer;
-    for (let i = 0; i < this.numberOfChannels; i++) {
-      const target = output.getChannelData(i);
-      if (target.length !== buffer[i].length) {
-        throw new RangeError('loop node: buffer size provided unequal to internal buffer size: '
-          + buffer[i].length + ' instead of ' + target.length)
-      }
-      target.set(buffer[i]);
-    }
-
-    if (!this.scheduledNode) {
-      const node = this.scheduledNode = this.context.createBufferSource();
-      node.buffer = this.nextBuffer;
-      node.connect(this.gain);
-      node.loop = true;
-      node.start(syncTime);
-      this.playingNode?.stop(syncTime);
-    }
-  }
-
-  start () {
-    if (!this.playing) {
-      this.playing = true;
-      this.gain.connect(this.destination);
-      this.scheduleNextBar();
-    }
-  }
-
-  stop (syncTime = this.syncTime) {
-    if (!this.playing) {
-      throw new Error('loop node: `stop()` called but has not started')
-    }
-    this.playing = false;
-    if (this.playingNode) {
-      this.playingNode.onended = () => this._onended();
-      this.playingNode.stop(syncTime);
-    }
-    if (this.scheduledNode) {
-      this.scheduledNode.stop(0);
-      this.scheduledNode.disconnect();
-    }
-  }
-}
-
-const getBeatRate = (sampleRate, bpm) => {
-  return Math.round(sampleRate * (60 / bpm))
-};
-
 class Shared32Array {
   constructor (length) {
     return new Float32Array(
       new SharedArrayBuffer(
         length * Float32Array.BYTES_PER_ELEMENT)
     )
+  }
+}
+
+class Rpc {
+  #callbackId = 0
+  #callbacks = new Map
+
+  constructor () {}
+
+  postCall (method, data) {
+    this.port.postMessage({ call: method, ...data });
+  }
+
+  rpc (method, data) {
+    return new Promise((resolve, reject) => {
+      const id = this.#callbackId++;
+
+      this.#callbacks.set(id, data => {
+        this.#callbacks.delete(id);
+        if (data.error) reject(data.error);
+        else resolve(data);
+      });
+
+      this.postCall(method, { data, callback: id });
+    })
+  }
+
+  callback (data) {
+    this.#callbacks.get(data.responseCallback)(data.data ?? data);
+  }
+
+  register (port) {
+    this.port = port;
+
+    this.port.addEventListener('message', async ({ data }) => {
+      // console.log(data)
+      if (!(data.call in this)) {
+        throw new ReferenceError(data.call + ' is not a method')
+      }
+
+      let result;
+      try {
+        if (data.call === 'callback') {
+          result = await this[data.call](data);
+        } else {
+          result = await this[data.call](data.data);
+        }
+      } catch (error) {
+        result = { error };
+      }
+
+      if ('callback' in data) {
+        this.postCall('callback', { data: result, responseCallback: data.callback });
+      }
+    });
+
+    this.port.addEventListener('error', error => {
+      console.error(error);
+      this.postCall('onerror', { error });
+    });
+
+    this.port.addEventListener('messageerror', error => {
+      console.error(error);
+      this.postCall('onmessageerror', { error });
+    });
+
+    return this
   }
 }
 
@@ -836,212 +771,189 @@ const fetchSample = async (audio, remoteUrl) => {
   return sample
 };
 
-const initial = `\
-// guide:
-//
-// ctrl+enter = play/pause
-//
-// mod(measure=1) = [beat time] modulo(%) [measure] (loop)
-// sin(hz) saw(hz) ramp(hz) sqr(hz) tri(hz) pulse(hz,width) noise(seed)
-// gen+w = wavetable, i.e: sinw saww triw ...
-// gen+t = time synced, i.e: sint sawt, trit ...
-// val(x) = explicit value x
-// push() = pushes value to spare to join later
-// join() = joins/sums previous spare values
-// exp(decay_speed=10) = reverse exponential curve (decay)
-// pat('.1 .2 .5 1',measure=last_mod) = pattern of scalars
-// pat('a4 f#5 c3 d3',measure=last_mod) = pattern of notes
-// patv(...) = shortcut to pattern volumes
-// slide('.1 .2 .5 1',measure=last_mod,speed=1) = slide pattern
-//   note: for sliding hz use wavetable oscillators
-// slidev(...) = shortcut to slide volumes
-// note('b#4') = note musical value in hz
-// offt(time_offset) = shift time by time_offset (used with mod)
-// vol(x)|mul(x) = multiply current value by x
-// lp1(cut,amt=1) hp1(cut,amt=1)
-// lp(cut,res=1,amt=1) hp(cut,res=1,amt=1)
-// bp(cut,res=1,amt=1) bpp(cut,res=1,amt=1)
-// not(cut,res=1,amt=1) ap(cut,res=1,amt=1)
-// pk(cut,res=1,gain=1,amt=1)
-// ls(cut,res=1,gain=1,amt=1) hs(cut,res=1,gain=1,amt=1)
-// eq(bp(...),ls(...),...) = equalizer
-// on(beat,measure,count=beat).[call]() = schedule next call
-// use a second parenthesis group schedule many calls:
-//   i.e on(...).many().calls.grouped()()
-//   to bypass use an 'x' before, so xon() will passthrough
-// delay(measure=1/16,feedback=.5,amt=.5)
-// tanh(x=1) = tanh value multiplied by x (s-curve distortion)
-// out(vol=1) = send value to speakers
-// send('send_name',amt=1) = sends to send channel "send_name"
-// val(send.send_name)...out() = process send "send_name"
-// send.out is the output and it's chainable like everything
-//
-// all changes are saved immediately and refresh
-// brings back the state as it was. to reset it
-// type in devtools console:
-//   delete localStorage.last
-//
-// enjoy :)
+var initial = `bpm(120)
 
-var kick =
-  mod(1/4).sinm(mod(1/4).val(42.881).exp(.057))
+mod(1/4).sin(mod(1/4).val(42.881).exp(.057))
   .exp(8.82).tanh(15.18)
+  .on(8,1).val(0)
   .out(.4)
 
-var snare =
-  mod(1/2).sample('freesound:220752',-19025,.95)
-  .slidev('- - 1 -',1/8,.5)
-    .patv('- - 1 .3',1/8)
-    .tanh(2)
-    .daverb()
+pulse(
+  val(50)
+  .on(8,1/8).val(70)
+  .on(8,1/2,16).mul(1.5)
+  .on(16,1/2).mul(2)
+  .on(4,16).mul(1.5)
+).mod(1/16).exp(10)
+  .vol('.1 .1 .5 1'.seq(1/16))
+  .lp(700,1.2)
+  .on(4,8).delay(1/(512+200*sin(1)),.8)
+  .on(1,8,16).vol(0)
+  .out(.35)
+
+mod(1/16).noise(333).exp(30)
+  .vol('.1 .4 1 .4'.seq(1/16))
+  .on(8,1/4).mul('1.5 13'.seq(1/32))
+  .hs(16000)
+  .bp(500+mod(1/4).val(8000).exp(2.85),.5,.5)
+  .on(8,2).vol(0)
+  .out(.2)
+
+mod(1/2).play('freesound:220752'.sample[0],-19025,1)
+  .vol('- - 1 -'.pat.slide(1/8,.5))
+  .vol('- - 1 .3'.pat.seq(1/8))
+  .tanh(2)
+  .out(.3)
+
+mod(4).play('freesound:243601'.sample[0],46000,.95)
+  .vol('- - - - - - 1 1 .8 - - - - - - -'.pat.seq(1/16))
+  .on(16,1).val(0)
+  .delay(1/100)
+  .daverb()
   .out(.4)
 
-var crash =
-  on(1,2,8)
-  .noisew(1)
+on(1,1,8).grp()
+  .noise()
   .bp(6000)
   .bp(14000)
-  .out(.07)
+  .out(.08)
+.end()
 
-var sitar =
-  sample('freesound:350547').daverb().out()
+main
+  .on(8,2).grp()
+    .bp(3000+mod(16,.06).cos(sync(16))*2800,4)
+    .vol('.7 1.2 1.4 1.9 1.9 2.1 2.2 2.3'.seq(1/4))
+  .end()`;
 
-var the_future =
-  sample('freesound:166834')
-  .daverb({
-    wet: .5,
-    preDelay: 1000,
-    bandwidth: .22,
-    inputDiffusion1: .8,
-    inputDiffusion2: .7,
-    decay: .6,
-    damping: .092,
-    decayDiffusion1: .89,
-    decayDiffusion2: .87,
-    excursionRate: .25,
-    excursionDepth: .12
-  })
-  .hs(5000,1,-15,.5)
-  .delay(16/(512+(420*sint(1/64))),.8).bpp(3000,.12,.5)
-  .out(.7)
+self.bufferSize = 2**19;
+self.buffers = [1,2,3].map(() => new Shared32Array(self.bufferSize));
+self.isRendering = false;
+self.renderTimeout = null;
 
-// var hihat =
-//   mod(1/16).noisew(1).exp(30)
-//   .patv('.1 .4 1 .4')
-//   .on(8,1/4).patv('1.5 15',1/32)
-//   .hs(16000)
-//   // .bp(2000,3,1)
-//   .bp(500+mod(1/2).val(8000).exp(2.85),.5,.5)
-//   .on(8,2).vol(0)
-//   .out(.23)
+class Wavepot extends Rpc {
+  data = {
+    numberOfChannels: 1,
+    sampleRate: 44100,
+    sampleIndex: 0,
+    bufferSize: self.bufferSize,
+    barSize: 0,
+  }
 
-// var clap =
-//   mod(1/4).noisew(8).exp(110)
-//   .push().offt(.986).noisew(10).exp(110).vol(1.25)
-//   .push().offt(.976).noisew(8).exp(110).vol(.9)
-//   .push().noisew(8).exp(8.5).vol(.1)
-//   .join()
-//   .patv('- 1')
-//   .bp(1200,1.7,1)
-//   .on(8,1/4).send('fx')
-//   .send('reverb',.5)
-//   .out(.45)
+  constructor () {
+    super();
+    Object.assign(self, this.data);
+  }
 
-// var bass_melody =
-//   val(50)
-//   .on(8,1/8).val(70)
-//   .on(8,1/2,16).mul(1.5)
-//   .on(16,1/2).mul(2)
+  async setup () {
+    await this.rpc('setup', this.data);
+  }
 
-// var bass =
-//   mod(1/16).pulsew(bass_melody).exp(10)
-//   .patv('.1 .1 .5 1')
-//   .lp(700,1.2)
-//   .out(.35)
+  async compile () {
+    const result = await this.rpc('compile', { code: editor.value });
+    console.log('compile: ', result);
+  }
 
-send.out
-  .on(2,1,32)
-  .slidev('1.1 - - - 1.1 - - - 1.1 - 1.2 - 1 - 1 -', 1/16, 5)
-  .on(8,2)
-  .vol(.65).bp(2000+sint(1/32)*1800,5)
-  ()
-`;
+  async render (data) {
+    return this.rpc('render', data)
+  }
 
-const numberOfChannels = 1;
-const sampleRate = 44100;
-const bpm = 120;
-
-let audio, node;
-
-let editor;
-let updateInProgress = false;
-let hasChanged = false;
-
-let n = 0;
-
-const readyCallbacks = [];
-
-const methods$1 = {
-  ready () {
-    readyCallbacks.splice(0).forEach(cb => cb());
-  },
-  play (worker, data) {
-    n = data.n;
-    updateInProgress = false;
-    node.playBuffer(worker.buffer);
-  },
-  async fetchSample (worker, { url }) {
+  async fetchSample ({ url }) {
     const sample = await fetchSample(audio, url);
     return { sample }
   }
-};
+}
 
-const workerUrl = new URL('render-worker.js', import.meta.url);
-const worker = new Worker(workerUrl, { type: 'module' });
-worker.onmessage = async ({ data }) => {
-  let result;
-  try {
-    result = await methods$1[data.call](worker, data);
-  } catch (error) {
-    result = { error };
-  }
-  if (data.callback) {
-    worker.postMessage({
-      call: 'callback',
-      callback: data.callback,
-      ...result
-    });
-  }
-};
-worker.onerror = error => {
-  updateInProgress = false;
-  console.error(error);
-};
-worker.onmessageerror = error => {
-  updateInProgress = false;
-  console.error(error);
-};
+const worker = new Worker('wavepot-worker.js', { type: 'module' });
+const wavepot = new Wavepot();
 
-const requestNextBuffer = () => {
-  if (updateInProgress) return
-  updateInProgress = true;
-  worker.postMessage({ call: 'play' });
-};
+let editor;
+let label = 'lastV1';
 
-const updateRenderFunction = (force = false) => {
-  if (updateInProgress && !force) return
-
-  hasChanged = false;
-  updateInProgress = true;
-
-  console.log('updating function');
-
-  worker.postMessage({
-    call: 'updateRenderFunction',
-    value: editor.value,
-    n: n //+node.bufferSize
+async function main () {
+  editor = new Editor({
+    id: 'main',
+    title: 'new-project.js',
+    // font: '/fonts/mononoki-Regular.woff2',
+    // font: '/fonts/ClassCoder.woff2',
+    font: '/fonts/labmono-regular-web.woff2',
+    value: localStorage[label] ?? initial,
+    fontSize: '10.5pt',
+    // fontSize: '16.4pt',
+    padding: 3.5,
+    titlebarHeight: 0,
+    width: window.innerWidth,
+    height: window.innerHeight,
   });
-};
+
+  editor.onchange = async () => {
+    localStorage[label] = editor.value;
+    // await wavepot.compile()
+    // playNext()
+  };
+  editor.onupdate = async () => {
+    localStorage[label] = editor.value;
+  };
+  container.appendChild(editor.canvas);
+  editor.parent = document.body;
+  editor.rect = editor.canvas.getBoundingClientRect();
+  // TODO: cleanup this shit
+  const events = registerEvents(document.body);
+  editor.onsetup = () => {
+    events.setTarget('focus', editor, { target: events.textarea, type: 'mouseenter' });
+
+    document.body.addEventListener('keydown', e => {
+      if (e.key === ' ' && (e.ctrlKey || e.metaKey)) {
+        e.stopPropagation();
+        e.preventDefault();
+        toggle();
+        return false
+      }
+      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+        e.stopPropagation();
+        e.preventDefault();
+        toggle();
+        return false
+      }
+
+      if (e.key === '.' && (e.ctrlKey || e.metaKey)) {
+        e.stopPropagation();
+        e.preventDefault();
+        editor.update(() => {
+          wavepot.compile().then(() => {
+            if (!isPlaying) {
+              toggle();
+            }
+            playNext();
+          });
+        });
+        return false
+      }
+    }, { capture: true });
+  };
+
+  window.onresize = () => {
+    editor.resize({
+      width: window.innerWidth,
+      height: window.innerHeight
+    });
+    // worker.postMessage({
+    //   call: 'resize',
+    //   width: window.innerWidth,
+    //   height: window.innerHeight
+    // })
+    // canvas.style.width = window.innerWidth + 'px'
+    // canvas.style.height = window.innerHeight + 'px'
+  };
+
+  await wavepot.register(worker).setup();
+}
+
+let audio,
+    audioBuffers,
+    bufferSourceNode,
+    bar = {},
+    isPlaying = false,
+    playNext = () => {};
 
 let toggle = async () => {
   audio = new AudioContext({
@@ -1050,97 +962,129 @@ let toggle = async () => {
     latencyHint: 'playback' // without this audio glitches
   });
 
-  node = new LoopNode({ numberOfChannels, bpm });
+  audioBuffers = [1,2,3].map(() => audio.createBuffer(
+    numberOfChannels,
+    bufferSize,
+    sampleRate
+  ));
 
-  node.connect(audio.destination);
+  let offsetTime = 0;
 
-  worker.buffer = Array(numberOfChannels).fill(0).map(() =>
-    new Shared32Array(node.bufferSize));
+  const getSyncTime = () => {
+    const bar = barSize / sampleRate;
+    const time = audio.currentTime - offsetTime;
+    const remain = bar - (time % bar);
+    return time + remain + offsetTime
+  };
 
-  worker.postMessage({
-    call: 'setup',
-    buffer: worker.buffer,
-    sampleRate,
-    beatRate: node.beatRate
-  });
+  playNext = async () => {
+    if (!isPlaying) return false
+    if (isRendering) return false
 
-  await new Promise(resolve => readyCallbacks.push(resolve));
+    bar.onended = null;
 
-  console.log('received worker ready');
-
-  node.onbar = () => {
-    if (hasChanged) {
-      updateRenderFunction();
-    } else {
-      requestNextBuffer();
+    const nextWorkerBuffer = buffers.pop();
+    if (!nextWorkerBuffer) {
+      console.log('no worker buffer available!');
+      return
     }
+
+    isRendering = true;
+    renderTimeout = setTimeout(() => {
+      console.log('Timed out!');
+      buffers.push(nextWorkerBuffer);
+      isRendering = false;
+    }, 10000);
+
+    const { bpm, bufferIndex, timeToRender } = await wavepot.render({ buffer: nextWorkerBuffer });
+    console.log('written:', bufferIndex, 'bpm:', bpm);
+    clearTimeout(renderTimeout);
+    isRendering = false;
+
+    if (!isPlaying) {
+      buffers.push(nextWorkerBuffer);
+      return
+    }
+
+    const nextBuffer = audioBuffers.pop();
+    if (!nextBuffer) {
+      console.log('no buffer available!');
+      return
+    }
+
+    for (let i = 0; i < numberOfChannels; i++) {
+      const target = nextBuffer.getChannelData(i);
+      target.set(nextWorkerBuffer.subarray(0, bufferIndex));
+    }
+
+    let syncTime;
+    if (offsetTime) {
+      syncTime = getSyncTime();
+    } else {
+      syncTime = audio.currentTime;
+    }
+
+    console.log('schedule for:', syncTime - offsetTime);
+
+    offsetTime = syncTime;
+
+    if (bufferSourceNode) {
+      bufferSourceNode.stop(syncTime);
+    }
+
+    barSize = bufferIndex;
+
+    const duration = barSize / sampleRate;
+
+    bufferSourceNode = audio.createBufferSource();
+    bufferSourceNode.buffer = nextBuffer;
+    bufferSourceNode.connect(audio.destination);
+    bufferSourceNode.loop = true;
+    bufferSourceNode.loopStart = 0.0;
+    bufferSourceNode.loopEnd = duration;
+    const node = bufferSourceNode;
+    bufferSourceNode.onended = () => {
+      node.disconnect();
+      audioBuffers.push(nextBuffer);
+      buffers.push(nextWorkerBuffer);
+      console.log('ended');
+    };
+
+    bar = audio.createConstantSource();
+    bar.onended = () => {
+      bar.disconnect();
+      onbar();
+    };
+    bar.start(syncTime);
+    bar.stop(syncTime + Math.max(0.001, duration - Math.max(duration/2, (timeToRender*.001)*1.3) ));
+
+    bufferSourceNode.start(syncTime);
   };
 
   console.log('connected node');
 
+  const onbar = () => {
+    console.log('bar');
+    playNext();
+  };
+
   const start = () => {
-    updateRenderFunction();
-    node.start();
-
-    document.body.onclick = () => {};
-
+    isPlaying = true;
+    playNext();
     toggle = () => {
-      node.stop(0);
+      bufferSourceNode?.stop(0);
+      offsetTime = 0;
+      isPlaying = false;
+      isRendering = false;
       toggle = start;
     };
   };
 
   toggle = start;
 
+  await wavepot.compile();
+
   start();
-};
-
-document.body.onclick = () => {
-  document.body.onclick = () => {};
-  document.body.addEventListener('keydown', e => {
-    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-      e.stopPropagation();
-      e.preventDefault();
-      toggle();
-      return false
-    }
-    if (e.key === 's' && (e.ctrlKey || e.metaKey)) {
-      updateRenderFunction(true);
-    }
-  }, { capture: true });
-};
-
-const main = async () => {
-  editor = new Editor({
-    id: 'main',
-    title: 'new-project.js',
-    font: '/fonts/SpaceMono-Regular.woff2',
-    value: localStorage.last ?? initial,
-    fontSize: '11.5pt',
-    // fontSize: '16.4pt',
-    padding: 10,
-    titlebarHeight: 42,
-    width: window.innerWidth,
-    height: window.innerHeight,
-  });
-
-  editor.onchange = () => {
-    localStorage.last = editor.value;
-    hasChanged = true;
-  };
-
-  container.appendChild(editor.canvas);
-  editor.parent = document.body;
-  editor.rect = editor.canvas.getBoundingClientRect();
-
-  registerEvents(document.body);
-
-  window.onresize = () => {
-    editor.resize({
-      width: window.innerWidth,
-      height: window.innerHeight
-    });
-  };
 };
 
 main();

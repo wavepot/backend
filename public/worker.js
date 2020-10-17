@@ -2063,7 +2063,7 @@ History.prototype.redo = function (needle) {
 
   if (needle < 1) return
 
-  this.lastNeedle = this.needle = needle;
+  this.lastNeedle = this.needle = Math.min(needle, this.log.length);
   return this.checkout('redo', needle - 1)
 };
 
@@ -2145,7 +2145,7 @@ var NewLine = R(['newline'], 'g');
 //NOTE: order matters
 var syntax = Regexp.join([
   'newline',
-  // 'comment',
+  'comment',
   ['number', R(['special', 'number'], '')],
   'operator',
   'symbol',
@@ -2172,7 +2172,7 @@ var Blocks = Regexp.join([
   // ['definition', R(['arguments']), '^'],
   ['property', R(['declare'])],
   ['keyword', R(['keyword'])],
-  ['number', R(['string'])],
+  ['string', R(['string'])],
   // 'regexp',
 ], 'gm');
 
@@ -2186,7 +2186,7 @@ function Syntax(o) {
 Syntax.prototype.entities = entities;
 
 Syntax.prototype.highlight = function(code, offset) {
-  code += '*/`';
+  code += '\n`*/\n';
 
   // code = this.createIndents(code);
   code = this.createBlocks(code);
@@ -2212,8 +2212,9 @@ Syntax.prototype.highlight = function(code, offset) {
 
   // code = this.restoreBlocks(code);
   // code = code.replace(Indent.regexp, Indent.replacer);
-
-  return pieces.slice(0,-2)
+  pieces.pop();
+  while (pieces.pop()[0] !== 'newline') {} // whoa
+  return pieces
 };
 
 Syntax.prototype.createIndents = function(code) {
@@ -2423,26 +2424,26 @@ var themes = [{
   name: "Wavepot",
   highlights: {
     background: "#000", //"#151515", //"#292923",
-    text: "#8398d6", //"#f7f7f3",
-    variable: "#ffffff",
+    text: "#f0ffff", //"#f7f7f3",
+    variable: "#8398d6",
     attribute: "#f2f2f2", //"#95e124",
     definition: "#616279", //"#ffa910", //ff372f",
     keyword: "#ff391f",
-    operator: "#ff391f", //"#13bcff",
+    operator: "#f40", //"#13bcff",
     property: "#ff391f", //"#a2a2af",
     // number: "#95e124", //"#fff", //"#f2e700", //"#fff", //"#ff69fe",
-    number: '#00f3b2', // "#13bcff", //"#0f0", //"#ff69fe",
-    string: "#bf828a",// "#ff69fe", //"#f2e700",
+    number: '#00afff', // "#13bcff", //"#0f0", //"#ff69fe",
+    string: "#f2e700",
     comment: "#6761b4",
-    symbol: '#6047ff',// '#626288', //, '#6262f2',
+    symbol: '#06f',// '#626288', //, '#6262f2',
     meta: "#555",
     tag: "#bc6283",
-    gutter: 'transparent',
+    gutter: 'rgba(0,0,0,.7)', //transparent',
     caret: '#fff',
     titlebar: '#000', //rgba(0,0,50,.2)', //'#303030',
     title: '#fff',
     scrollbar: 'rgba(120,120,255,.17)', //', //'#3f30af',
-    lineNumbers: 'transparent' //'#556'
+    lineNumbers: '#494183'
   }
 // }, {
 //   id: "wavepot",
@@ -2758,6 +2759,13 @@ class Editor {
       });
   }
 
+  update () {
+    this.postMessage({
+      call: 'onupdate',
+      ...this.controlEditor.focusedEditor.toJSON()
+    });
+  }
+
   toJSON () {
     return {
       controlEditor: { id: this.controlEditor.id },
@@ -2835,6 +2843,7 @@ class Editor {
 
     this.applyFont(this.ctx.text);
     this.char = {};
+    this.char.offsetTop = .5;
     this.char.metrics = this.ctx.text.measureText('M');
     this.char.width = this.char.metrics.width;
     this.char.height =
@@ -2842,9 +2851,9 @@ class Editor {
       - this.char.metrics.actualBoundingBoxAscent)
       * 1.15; //.96 //1.68
     // this.char.metrics.emHeightDescent
-    this.gutter = { padding: 3, width: 0, height: 0 };
+    this.gutter = { padding: 7, width: 0, height: 0 };
 
-    this.line = { padding: 0 };
+    this.line = { padding: 3 };
     this.line.height = this.char.height + this.line.padding;
 
     this.char.px = {
@@ -2861,7 +2870,7 @@ class Editor {
     this.tabSize = 2;
 
     this.titlebar = { height: data.titlebarHeight ??  this.char.px.height + 2.5 };
-    this.canvas.title.height = this.titlebar.height;
+    this.canvas.title.height = Math.max(1, this.titlebar.height);
 
     this.scrollbar = { width: 6 };
     this.scrollbar.margin = Math.ceil(this.scrollbar.width / 2);
@@ -2897,10 +2906,10 @@ class Editor {
     if (!this.isSubEditor) {
       this.history = new History(this);
       this.history.on('save', () => {
-        this.postMessage({
-          call: 'onhistory',
-          ...this.history.toJSON()
-        });
+        // this.postMessage({
+        //   call: 'onhistory',
+        //   ...this.history.toJSON()
+        // })
       });
       this.history.on('change', editor => {
         this.postMessage({
@@ -3739,13 +3748,16 @@ class Editor {
   updateGutter () {
     const { gutter } = this.ctx;
 
-    this.applyFont(gutter);
+    // this.applyFont(gutter)
+    gutter.textBaseline = 'top';
+    gutter.font = `normal ${parseFloat(this.fontSize)+'pt'} mono`;
+
     gutter.fillStyle = theme.gutter;
     gutter.fillRect(0, 0, this.canvas.gutter.width, this.canvas.gutter.height);
     gutter.fillStyle = theme.lineNumbers;
 
     for (let i = 0, y = 0; i <= this.sizes.loc; i++) {
-      y = this.canvas.padding + i * this.line.height;
+      y = this.canvas.padding + i * this.line.height + this.char.offsetTop;
       gutter.fillText(
         (1 + i).toString().padStart(this.gutter.size),
         this.canvas.padding,
@@ -3800,7 +3812,7 @@ class Editor {
 
         for (const [type, string, x, y] of queue) {
           text.fillStyle = theme[type];
-          text.fillText(string, x, y);
+          text.fillText(string, x, y + this.char.offsetTop);
         }
         queue.length = 0;
 
@@ -3950,6 +3962,7 @@ class Editor {
   }
 
   drawTitle () {
+    if (this.titlebarHeight === 0) return
     // this.ctx.outer.save()
     this.ctx.outer.fillStyle = theme.titlebar;
 
@@ -4105,10 +4118,10 @@ class Editor {
     * this.canvas.pixelRatio
     + this.titlebar.height
     + this.offsetTop
-    + this.char.px.height + 2, // dy
+    + this.char.px.height + 1, // dy
 
       this.char.px.width, // dw
-      2 // dh
+      1 // dh
     );
 
     this.ctx.outer.fillRect(
@@ -4122,10 +4135,10 @@ class Editor {
     * this.canvas.pixelRatio
     + this.titlebar.height
     + this.offsetTop
-    + this.char.px.height + 2, // dy
+    + this.char.px.height + 1, // dy
 
       this.char.px.width, // dw
-      2 // dh
+      1 // dh
     );
   }
 
@@ -4439,7 +4452,7 @@ class Editor {
     this.key = e.key.length === 1 ? e.key : null;
 
     if (!e.cmdKey && this.key) return this.insert(this.key)
-    if (e.key === 'Enter') return this.insert('\n')
+    if (!e.cmdKey && e.key === 'Enter') return this.insert('\n')
     if (!e.cmdKey && e.key === 'Backspace') return this.backspace()
     if (!e.cmdKey && !e.shiftKey && e.key === 'Delete') return this.delete()
 
@@ -4450,6 +4463,18 @@ class Editor {
     else if (e.key !== 'Delete' && !e.cmdKey && e.key !== 'Tab') this.markClear();
 
     switch (this.pressed) {
+      case 'Cmd z': {
+        const editor = this.history.undo(this.history.needle-1);
+        if (editor) this.setFocusedEditor(editor);
+        this.draw();
+      }
+      break
+      case 'Cmd y': {
+        const editor = this.history.redo(this.history.needle+1);
+        if (editor) this.setFocusedEditor(editor);
+        this.draw();
+      }
+      break
       case 'Tab': {
         const tab = ' '.repeat(this.tabSize);
 
@@ -4537,11 +4562,11 @@ class Editor {
 
         //TODO: should check if last line has // also
         if (text.trimLeft().substr(0,2) === '//') {
-          add = -3;
-          text = text.replace(/^(.*?)\/\/ (.+)/gm, '$1$2');
+          add = -2;
+          text = text.replace(/^(.*?)\/\/(.+)?/gm, '$1$2');
         } else {
-          add = +3;
-          text = text.replace(/^([\s]*)(.+)/gm, '$1// $2');
+          add = +2;
+          text = text.replace(/^(.+)/gm, '//$1');
         }
 
         this.mark.set(area);
@@ -4838,7 +4863,12 @@ class Editor {
 
 if (isWorker) {
   const editor = new Editor();
-  onmessage = ({ data }) => editor[data.call](data);
+  onmessage = ({ data }) => {
+    if (!(data.call in editor)) {
+      console.error(data.call + ' is not a method');
+    }
+    editor[data.call](data);
+  };
   postMessage({ call: 'onready' });
 }
 

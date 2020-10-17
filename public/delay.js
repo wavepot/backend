@@ -1,10 +1,8 @@
 import { toFinite, clamp } from './util.js'
 
 export default function Delay(size){
-  if (!(this instanceof Delay)) return new Delay(size);
-  size = size || 512;
+  this.size = size //buffer.length //size || 512;
   this.buffer = new Float32Array(size);
-  this.size = size;
   this.counter = 0;
   this._feedback = 0.5;
   this._delay = 100;

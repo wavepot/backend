@@ -1,4 +1,4 @@
-import Editor, { registerEvents } from './editor.js'
+import Editor, { registerEvents } from './editor/editor.js'
 import LoopNode from './loop-node.js'
 import Shared32Array from './shared32array.js'
 import * as api from './api.js'
@@ -232,12 +232,27 @@ let toggle = async () => {
   worker.buffer = Array(numberOfChannels).fill(0).map(() =>
     new Shared32Array(node.bufferSize))
 
-  worker.postMessage({
-    call: 'setup',
-    buffer: worker.buffer,
-    sampleRate,
-    beatRate: node.beatRate
-  })
+  if (offscreen) {
+    worker.postMessage({
+      call: 'setup',
+      buffer: worker.buffer,
+      sampleRate,
+      beatRate: node.beatRate,
+      canvas: offscreen,
+      width: window.innerWidth,
+      height: window.innerHeight,
+      pixelRatio: window.devicePixelRatio,
+    }, [offscreen])
+  } else {
+    worker.postMessage({
+      call: 'setup',
+      buffer: worker.buffer,
+      sampleRate,
+      beatRate: node.beatRate
+    })
+  }
+
+  offscreen = null
 
   await new Promise(resolve => readyCallbacks.push(resolve))
 
@@ -285,7 +300,15 @@ document.body.onclick = () => {
   }, { capture: true })
 }
 
+let offscreen
 const main = async () => {
+  const canvas = document.createElement('canvas')
+  canvas.className = 'back-canvas'
+  canvas.style.width = window.innerWidth + 'px'
+  canvas.style.height = window.innerHeight + 'px'
+  offscreen = canvas.transferControlToOffscreen()
+  container.appendChild(canvas)
+
   editor = new Editor({
     id: 'main',
     title: 'new-project.js',
@@ -294,7 +317,7 @@ const main = async () => {
     fontSize: '11.5pt',
     // fontSize: '16.4pt',
     padding: 10,
-    titlebarHeight: 42,
+    titlebarHeight: 0,
     width: window.innerWidth,
     height: window.innerHeight,
   })
@@ -315,6 +338,13 @@ const main = async () => {
       width: window.innerWidth,
       height: window.innerHeight
     })
+    worker.postMessage({
+      call: 'resize',
+      width: window.innerWidth,
+      height: window.innerHeight
+    })
+    canvas.style.width = window.innerWidth + 'px'
+    canvas.style.height = window.innerHeight + 'px'
   }
 }
 
