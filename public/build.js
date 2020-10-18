@@ -772,6 +772,8 @@ const fetchSample = async (audio, remoteUrl) => {
 };
 
 var initial = `/// guide
+// ctrl+enter - start/stop
+// ctrl+. - update sound
 // bpm(bpm) - set bpm
 // mod(sig) - modulo sound to time signature
 // sin(hz) tri(hz) saw(hz) ramp(hz) pulse(hz) sqr(hz) noise(seed) - oscillator sound generators
