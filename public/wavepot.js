@@ -16,6 +16,7 @@ class Wavepot extends Rpc {
     sampleIndex: 0,
     bufferSize: self.bufferSize,
     barSize: 0,
+    plot: {}
   }
 
   constructor () {
@@ -24,7 +25,7 @@ class Wavepot extends Rpc {
   }
 
   async setup () {
-    await this.rpc('setup', this.data)
+    await this.rpc('setup', this.data, [this.data.plot.backCanvas])
   }
 
   async compile () {
@@ -46,9 +47,21 @@ const worker = new Worker('wavepot-worker.js', { type: 'module' })
 const wavepot = new Wavepot()
 
 let editor
-let label = 'lastV1'
+let label = 'lastV2'
 
 async function main () {
+  const canvas = document.createElement('canvas')
+  canvas.className = 'back-canvas'
+  canvas.width = window.innerWidth*window.devicePixelRatio
+  canvas.height = window.innerHeight*window.devicePixelRatio
+  canvas.style.width = window.innerWidth + 'px'
+  canvas.style.height = window.innerHeight + 'px'
+  wavepot.data.plot.backCanvas = canvas.transferControlToOffscreen()
+  wavepot.data.plot.width = window.innerWidth
+  wavepot.data.plot.height = window.innerHeight
+  wavepot.data.plot.pixelRatio = window.devicePixelRatio
+  container.appendChild(canvas)
+
   editor = new Editor({
     id: 'main',
     title: 'new-project.js',
@@ -120,8 +133,8 @@ async function main () {
     //   width: window.innerWidth,
     //   height: window.innerHeight
     // })
-    // canvas.style.width = window.innerWidth + 'px'
-    // canvas.style.height = window.innerHeight + 'px'
+    canvas.style.width = window.innerWidth + 'px'
+    canvas.style.height = window.innerHeight + 'px'
   }
 
   await wavepot.register(worker).setup()

@@ -9,13 +9,13 @@ export default function Delay(size){
 }
 
 Delay.prototype.feedback = function(n){
-  n = toFinite(n)
+  n = toFinite(clamp(0, 0.99, n))
   this._feedback = n;
   return this;
 };
 
 Delay.prototype.delay = function(n){
-  n = toFinite(n)
+  n = toFinite(clamp(0, this.size, n))
   this._delay = n;
   return this;
 };

@@ -3808,11 +3808,15 @@ class Editor {
 
       if (type === 'newline') {
         back.fillStyle = 'rgba(0,0,0,.7)';
-        back.fillRect(0, y, this.char.width * (index - lastNewLine) + 4, fh);
+        back.fillRect(0, y-1.5, this.char.width * (index - lastNewLine) + 4, fh);
 
         for (const [type, string, x, y] of queue) {
           text.fillStyle = theme[type];
-          text.fillText(string, x, y + this.char.offsetTop);
+          text.fillText(
+            string
+            .replaceAll('//', '/ /')
+            .replaceAll('//', '/ /') // hack: adds a tiny space between / and / to bypass ligature
+            , x, y + this.char.offsetTop);
         }
         queue.length = 0;
 
@@ -3838,11 +3842,15 @@ class Editor {
 
     if (queue.length) {
       back.fillStyle = 'rgba(0,0,0,.7)';
-      back.fillRect(0, y, this.char.width * (idx - lastNewLine + queue[queue.length-1][1].length) + 4, fh);
+      back.fillRect(0, y-1.5, this.char.width * (idx - lastNewLine + queue[queue.length-1][1].length) + 4, fh);
       // text.fillRect(0, y, this.char.width * string.length + 4, fh)
       for (const [type, string, x, y] of queue) {
         text.fillStyle = theme[type];
-        text.fillText(string, x, y);
+        text.fillText(
+          string
+          .replaceAll('//', '/ /')
+          .replaceAll('//', '/ /') // hack: adds a tiny space between / and / to bypass ligature
+          , x, y);
       }
     }
   }

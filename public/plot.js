@@ -10,9 +10,11 @@ export default ({ ctx, width: w, height: h, pixelRatio: pr }, size = 1) => {
   let i = 0, x = 0
   let cx = 0, cy = 0
 
-  const length = 2**11
-  const buffer = new Float32Array(length)
+  const length = 2048 //buffer.length //2**11
+  // const buffer = new Float32Array(length)
   const step = 2/length
+
+  let buffer = []
 
   const f = x => buffer[x] //x*(size)/2
 
@@ -41,7 +43,7 @@ export default ({ ctx, width: w, height: h, pixelRatio: pr }, size = 1) => {
       ctx.stroke()
     } else {
       const vlw = (w/sc)
-      for (let i = 1; i <= sc; i++) {
+      for (let i = 1; i < sc; i++) {
         ctx.beginPath()
         ctx.strokeStyle = GRID_COLORS[i%4]
         ctx.moveTo(i*vlw,0)
@@ -79,7 +81,12 @@ export default ({ ctx, width: w, height: h, pixelRatio: pr }, size = 1) => {
     drawY,
     drawLine,
     resize,
-    buffer,
+    setBuffer (_buffer) {
+      buffer = _buffer
+    },
+    setSize (_size) {
+      size = _size
+    },
   }
 }
 

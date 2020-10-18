@@ -43,11 +43,11 @@ class Rpc {
 
   constructor () {}
 
-  postCall (method, data) {
-    this.port.postMessage({ call: method, ...data });
+  postCall (method, data, tx) {
+    this.port.postMessage({ call: method, ...data }, tx);
   }
 
-  rpc (method, data) {
+  rpc (method, data, tx) {
     return new Promise((resolve, reject) => {
       const id = this.#callbackId++;
 
@@ -57,7 +57,7 @@ class Rpc {
         else resolve(data);
       });
 
-      this.postCall(method, { data, callback: id });
+      this.postCall(method, { data, callback: id }, tx);
     })
   }
 
@@ -79,7 +79,7 @@ class Rpc {
         if (data.call === 'callback') {
           result = await this[data.call](data);
         } else {
-          result = await this[data.call](data.data);
+          result = await this[data.call](data.data ?? data);
         }
       } catch (error) {
         result = { error };
@@ -101,6 +101,15 @@ class Rpc {
     });
 
     return this
+  }
+}
+
+class Shared32Array {
+  constructor (length) {
+    return new Float32Array(
+      new SharedArrayBuffer(
+        length * Float32Array.BYTES_PER_ELEMENT)
+    )
   }
 }
 
@@ -359,6 +368,7 @@ class Sound {
     this._mod = Infinity;
     this._wavetables_i = 0;
     this._wavetables = new Array(100).fill(0);
+    this._plot_buffer = new Shared32Array(2048);
 
     const returnThis = () => this;
     this._ignoreNext =
@@ -412,7 +422,7 @@ class Sound {
     return this
   }
 
-  exp (x=10) {
+  exp (x=1) {
     this.x0 *= Math.exp(-this.t * x);
     return this
   }
@@ -449,6 +459,21 @@ class Sound {
 
   out (x=1) {
     main.x0 += this.x0 * x;
+    return this
+  }
+
+  plot (x=1) {
+    if (i === 0) {
+      this._plot_buffer.fill(0);
+    }
+    let co = bar / (2048*x);
+    if (i === bar - 1) {
+      worker.plot(this._plot_buffer, (1/x));
+      return this
+    }
+    if ((i % co)|0 === 0) {
+      this._plot_buffer[(i/co)|0] = this.x0;
+    }
     return this
   }
 
@@ -568,13 +593,13 @@ function Delay(size){
 }
 
 Delay.prototype.feedback = function(n){
-  n = toFinite(n);
+  n = toFinite(clamp(0, 0.99, n));
   this._feedback = n;
   return this;
 };
 
 Delay.prototype.delay = function(n){
-  n = toFinite(n);
+  n = toFinite(clamp(0, this.size, n));
   this._delay = n;
   return this;
 };
@@ -867,7 +892,7 @@ self.toFinite = toFinite;
 self.pi2 = Math.PI * 2;
 
 // audio
-self.bufferSize = 88200;
+self.bufferSize = 2**19;
 self.sampleRate = 44100;
 self.buffer = new Float32Array(88200);
 self.numberOfChannels = 1;
@@ -998,12 +1023,14 @@ RPC API Interface with Main thread
 class Renderer extends Rpc {
   constructor () {
     super();
+    this.plotService = new Rpc().register(new Worker('plot-worker.js', { type: 'module' }));
   }
 
   lastFunc () {}
 
   setup (data) {
     Object.assign(self, data);
+    this.plotService.postCall('setup', data.plot, [data.plot.backCanvas]);
   }
 
   compile ({ code }) {
@@ -1041,6 +1068,10 @@ class Renderer extends Rpc {
       delete samples[url];
       console.error(error);
     }
+  }
+
+  plot (buffer, size=1) {
+    this.plotService.postCall('draw', { buffer, size });
   }
 }
 

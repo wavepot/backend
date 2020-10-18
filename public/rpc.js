@@ -4,11 +4,11 @@ export default class Rpc {
 
   constructor () {}
 
-  postCall (method, data) {
-    this.port.postMessage({ call: method, ...data })
+  postCall (method, data, tx) {
+    this.port.postMessage({ call: method, ...data }, tx)
   }
 
-  rpc (method, data) {
+  rpc (method, data, tx) {
     return new Promise((resolve, reject) => {
       const id = this.#callbackId++
 
@@ -18,7 +18,7 @@ export default class Rpc {
         else resolve(data)
       })
 
-      this.postCall(method, { data, callback: id })
+      this.postCall(method, { data, callback: id }, tx)
     })
   }
 
@@ -40,7 +40,7 @@ export default class Rpc {
         if (data.call === 'callback') {
           result = await this[data.call](data)
         } else {
-          result = await this[data.call](data.data)
+          result = await this[data.call](data.data ?? data)
         }
       } catch (error) {
         result = { error }

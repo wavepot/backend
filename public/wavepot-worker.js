@@ -20,7 +20,7 @@ self.toFinite = toFinite
 self.pi2 = Math.PI * 2
 
 // audio
-self.bufferSize = 88200
+self.bufferSize = 2**19
 self.sampleRate = 44100
 self.buffer = new Float32Array(88200)
 self.numberOfChannels = 1
@@ -151,12 +151,14 @@ RPC API Interface with Main thread
 export default class Renderer extends Rpc {
   constructor () {
     super()
+    this.plotService = new Rpc().register(new Worker('plot-worker.js', { type: 'module' }))
   }
 
   lastFunc () {}
 
   setup (data) {
     Object.assign(self, data)
+    this.plotService.postCall('setup', data.plot, [data.plot.backCanvas])
   }
 
   compile ({ code }) {
@@ -194,6 +196,10 @@ export default class Renderer extends Rpc {
       delete samples[url]
       console.error(error)
     }
+  }
+
+  plot (buffer, size=1) {
+    this.plotService.postCall('draw', { buffer, size })
   }
 }
 
