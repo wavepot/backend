@@ -4472,13 +4472,13 @@ class Editor {
 
     switch (this.pressed) {
       case 'Cmd z': {
-        const editor = this.history.undo(this.history.needle-1);
+        const editor = this.controlEditor.history.undo(this.controlEditor.history.needle-1);
         if (editor) this.setFocusedEditor(editor);
         this.draw();
       }
       break
       case 'Cmd y': {
-        const editor = this.history.redo(this.history.needle+1);
+        const editor = this.controlEditor.history.redo(this.controlEditor.history.needle+1);
         if (editor) this.setFocusedEditor(editor);
         this.draw();
       }

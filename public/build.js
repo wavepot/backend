@@ -2039,13 +2039,13 @@ return screens[screens_i++].${method}(${argNames})
 });
 
 self.bufferSize = 2**19;
-self.buffers = [1,2,3].map(() => new Shared32Array(self.bufferSize));
+self.buffers = [1,2,3].map(() => ([new Shared32Array(self.bufferSize), new Shared32Array(self.bufferSize)]));
 self.isRendering = false;
 self.renderTimeout = null;
 
 class Wavepot extends Rpc {
   data = {
-    numberOfChannels: 1,
+    numberOfChannels: 2,
     sampleRate: 44100,
     sampleIndex: 0,
     bufferSize: self.bufferSize,
@@ -2292,7 +2292,7 @@ let toggle = async () => {
 
     for (let i = 0; i < numberOfChannels; i++) {
       const target = nextBuffer.getChannelData(i);
-      target.set(nextWorkerBuffer.subarray(0, bufferIndex));
+      target.set(nextWorkerBuffer[i].subarray(0, bufferIndex));
     }
 
     let syncTime;

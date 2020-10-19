@@ -22,8 +22,8 @@ self.pi2 = Math.PI * 2
 // audio
 self.bufferSize = 2**19
 self.sampleRate = 44100
-self.buffer = new Float32Array(88200)
-self.numberOfChannels = 1
+self.buffer = [new Float32Array([0]),new Float32Array([0])]
+self.numberOfChannels = 2
 
 // clock
 self.real_n = 0 // this doesn't adjust by bpm
@@ -132,12 +132,13 @@ for (i = 0; i < bufferSize; i++) {
 
   `)}
 
-  buffer[i] = main.x0.toFinite()
+  buffer[0][i] = main.x0.toFinite()*.5 + main.Lx0.toFinite()
+  buffer[1][i] = main.x0.toFinite()*.5 + main.Rx0.toFinite()
   sounds_i =
   _biquads_i =
   _daverbs_i =
   _delays_i =
-  main.x0 = 0
+  main.Lx0 = main.Rx0 = main.x0 = 0
 }
 
 return { bufferIndex: i, bpm: _bpm }

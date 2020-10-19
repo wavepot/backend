@@ -364,6 +364,8 @@ const getMethods = (obj) => {
 class Sound {
   constructor () {
     this.x0 = 0;
+    this.Lx0 = 0;
+    this.Rx0 = 0;
     this.t = 0;
     this._mod = Infinity;
     this._wavetables_i = 0;
@@ -469,6 +471,12 @@ class Sound {
   daverb (x={}) {
     let d = _daverbs[_daverbs_i++];
     this.x0 = d.process(this.x0, x);
+    return this
+  }
+
+  panout (LR=0,x=1) { // -1..+1  0=center
+    main.Lx0 += this.x0 * x * (1-(.5 + .5*LR));
+    main.Rx0 += this.x0 * x *    (.5 + .5*LR);
     return this
   }
 
@@ -909,8 +917,8 @@ self.pi2 = Math.PI * 2;
 // audio
 self.bufferSize = 2**19;
 self.sampleRate = 44100;
-self.buffer = new Float32Array(88200);
-self.numberOfChannels = 1;
+self.buffer = [new Float32Array([0]),new Float32Array([0])];
+self.numberOfChannels = 2;
 
 // clock
 self.real_n = 0; // this doesn't adjust by bpm
@@ -1019,12 +1027,13 @@ for (i = 0; i < bufferSize; i++) {
 
   `)}
 
-  buffer[i] = main.x0.toFinite()
+  buffer[0][i] = main.x0.toFinite()*.5 + main.Lx0.toFinite()
+  buffer[1][i] = main.x0.toFinite()*.5 + main.Rx0.toFinite()
   sounds_i =
   _biquads_i =
   _daverbs_i =
   _delays_i =
-  main.x0 = 0
+  main.Lx0 = main.Rx0 = main.x0 = 0
 }
 
 return { bufferIndex: i, bpm: _bpm }

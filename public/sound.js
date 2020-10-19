@@ -12,6 +12,8 @@ const getMethods = (obj) => {
 class Sound {
   constructor () {
     this.x0 = 0
+    this.Lx0 = 0
+    this.Rx0 = 0
     this.t = 0
     this._mod = Infinity
     this._wavetables_i = 0
@@ -117,6 +119,12 @@ class Sound {
   daverb (x={}) {
     let d = _daverbs[_daverbs_i++]
     this.x0 = d.process(this.x0, x)
+    return this
+  }
+
+  panout (LR=0,x=1) { // -1..+1  0=center
+    main.Lx0 += this.x0 * x * (1-(.5 + .5*LR))
+    main.Rx0 += this.x0 * x *    (.5 + .5*LR)
     return this
   }
 
