@@ -75,8 +75,23 @@ class Sound {
     return this
   }
 
+  abs () {
+    this.x0 = Math.abs(this.x0)
+    return this
+  }
+
   tanh (x=1) {
     this.x0 = Math.tanh(this.x0 * x)
+    return this
+  }
+
+  atan (x=1) {
+    this.x0 = (2 / Math.PI)*Math.atan((Math.PI / 2) * this.x0 * x)
+    return this
+  }
+
+  soft (x=1) {
+    this.x0 = this.x0 / ((1/x) + Math.abs(this.x0))
     return this
   }
 

@@ -111,7 +111,9 @@ export const compile = (code) => {
   let src = `
 console.log('n is:', n)
 for (i = 0; i < bufferSize; i++) {
-  if (i > 50000 && ((i % (bar|0)) === 0)) {
+  // make sure we have enough buffer to escape glitches
+  // and that it divides to bars so it's rhythmic if it does
+  if (i > 50000 && ((i % bar) === 0)) {
     break
   }
 
@@ -121,7 +123,9 @@ for (i = 0; i < bufferSize; i++) {
 
   ${code.split('\n\n').join(`
 
-  // TODO: use better heuristics
+  // space out effects so they don't interfere
+  // much when commenting out sounds
+  // TODO: this is awful, use better heuristics
   _biquads_i += 5
   _daverbs_i += 5
   _delays_i += 5
@@ -138,7 +142,12 @@ for (i = 0; i < bufferSize; i++) {
 
 return { bufferIndex: i, bpm: _bpm }
   `
-  let func = new Function(Object.keys(self.api), src).bind(null, ...Object.values(self.api))
+
+  let func = new Function(
+    Object.keys(self.api),
+    src
+  ).bind(null, ...Object.values(self.api))
+
   return func
 }
 

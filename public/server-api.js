@@ -51,7 +51,7 @@ export const save = async (projectJson) => {
 let samples = new Map
 
 export const fetchSample = async (audio, remoteUrl) => {
-  const url = API_URL + '/fetch?url=' + encodeURIComponent(remoteUrl)
+  const url = getFetchUrl(remoteUrl)
 
   let sample = samples.get(remoteUrl)
 
@@ -70,4 +70,9 @@ export const fetchSample = async (audio, remoteUrl) => {
   }
 
   return sample
+}
+
+export const getFetchUrl = (remoteUrl) => {
+  const url = API_URL + '/fetch?url=' + encodeURIComponent(remoteUrl)
+  return url
 }

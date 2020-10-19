@@ -1,8 +1,9 @@
-import Editor, { registerEvents } from './editor.js'
+import Editor, { registerEvents } from './editor/editor.js'
 import Shared32Array from './shared32array.js'
 import Rpc from './rpc.js'
 import * as Server from './server-api.js'
 import initial from './initial.js'
+import Shader from './shader/shader.js'
 
 self.bufferSize = 2**19
 self.buffers = [1,2,3].map(() => new Shared32Array(self.bufferSize))
@@ -29,8 +30,24 @@ class Wavepot extends Rpc {
   }
 
   async compile () {
-    const result = await this.rpc('compile', { code: editor.value })
-    console.log('compile: ', result)
+    let code = editor.value
+
+    try {
+      const { shaderFunc, rest } = shader.extractAndCompile(code)
+      shader.shaderFunc = shaderFunc
+      code = rest
+      if (shader.shaderFunc) {
+        console.log('compiled shader')
+      } else {
+        console.log('no shader')
+      }
+    } catch (error) {
+      console.error('Error compiling shader')
+      console.error(error)
+    }
+
+    const result = await this.rpc('compile', { code })
+    console.log('compiled sound: ', result)
   }
 
   async render (data) {
@@ -45,9 +62,14 @@ class Wavepot extends Rpc {
 
 const worker = new Worker('wavepot-worker.js', { type: 'module' })
 const wavepot = new Wavepot()
+const shader = new Shader(container)
 
 let editor
-let label = 'lastV2'
+const FILE_DELIMITER = '\n/* -^-^-^-^- */\n'
+let label = 'lastV5'
+let tracks = localStorage[label]
+if (tracks) tracks = tracks.split(FILE_DELIMITER).map(track => JSON.parse(track))
+else tracks = initial.map(value => ({ id: ((Math.random()*10e6)|0).toString(36), value }))
 
 async function main () {
   const canvas = document.createElement('canvas')
@@ -62,28 +84,45 @@ async function main () {
   wavepot.data.plot.pixelRatio = window.devicePixelRatio
   container.appendChild(canvas)
 
-  editor = new Editor({
-    id: 'main',
-    title: 'new-project.js',
+  editor = window.editor = new Editor({
     // font: '/fonts/mononoki-Regular.woff2',
     // font: '/fonts/ClassCoder.woff2',
     font: '/fonts/labmono-regular-web.woff2',
-    value: localStorage[label] ?? initial,
+    id: tracks[0].id,
+    value: tracks[0].value,
     fontSize: '10.5pt',
-    // fontSize: '16.4pt',
     padding: 3.5,
     titlebarHeight: 0,
     width: window.innerWidth,
     height: window.innerHeight,
   })
 
-  editor.onchange = async () => {
-    localStorage[label] = editor.value
-    // await wavepot.compile()
-    // playNext()
+  tracks.slice(1).forEach(data => editor.addSubEditor(data))
+
+  let save = () => {
+    localStorage[label] = tracks.map(track => JSON.stringify(track)).join(FILE_DELIMITER)
+  }
+
+  editor.ontoadd = () => {
+    const id = (Math.random() * 10e6 | 0).toString(36)
+    const value = 'bpm(120)\n\nmod(1/4).saw(50).exp(10).out().plot()\n'
+    editor.addSubEditor({ id, value })
+  }
+
+  editor.onchange = (data) => {
+    const track = tracks.find(editor => editor.id === data.id)
+    if (track) track.value = data.value
+    save()
+  }
+  editor.onremove = (data) => {
+    const track = tracks.find(editor => editor.id === data.id)
+    if (track) {
+      tracks.splice(tracks.indexOf(track), 1)
+    }
+    save()
   }
   editor.onupdate = async () => {
-    localStorage[label] = editor.value
+//    localStorage[label] = editor.value
   }
   container.appendChild(editor.canvas)
   editor.parent = document.body
@@ -92,6 +131,14 @@ async function main () {
   const events = registerEvents(document.body)
   editor.onsetup = () => {
     events.setTarget('focus', editor, { target: events.textarea, type: 'mouseenter' })
+
+    // leave time to setup
+    setTimeout(() => {
+      editor.onadd = (data) => {
+        tracks.push(data)
+        save()
+      }
+    }, 1000)
 
     document.body.addEventListener('keydown', e => {
       if (e.key === ' ' && (e.ctrlKey || e.metaKey)) {
@@ -135,6 +182,8 @@ async function main () {
     // })
     canvas.style.width = window.innerWidth + 'px'
     canvas.style.height = window.innerHeight + 'px'
+
+    shader.resize()
   }
 
   await wavepot.register(worker).setup()
@@ -146,6 +195,10 @@ let audio,
     bar = {},
     isPlaying = false,
     playNext = () => {}
+
+let origSyncTime = 0
+let animFrame = 0
+let coeff = 1
 
 let toggle = async () => {
   audio = new AudioContext({
@@ -213,13 +266,12 @@ let toggle = async () => {
     if (offsetTime) {
       syncTime = getSyncTime()
     } else {
-      syncTime = audio.currentTime
+      syncTime = origSyncTime = audio.currentTime + 1
     }
 
     console.log('schedule for:', syncTime - offsetTime)
 
     offsetTime = syncTime
-
     if (bufferSourceNode) {
       bufferSourceNode.stop(syncTime)
     }
@@ -227,6 +279,8 @@ let toggle = async () => {
     barSize = bufferIndex
 
     const duration = barSize / sampleRate
+
+    coeff = sampleRate / barSize
 
     bufferSourceNode = audio.createBufferSource()
     bufferSourceNode.buffer = nextBuffer
@@ -260,11 +314,27 @@ let toggle = async () => {
     playNext()
   }
 
+  const startAnim = () => {
+    const tick = () => {
+      animFrame = requestAnimationFrame(tick)
+      shader.time = (audio.currentTime - origSyncTime) * coeff
+      shader.tick()
+    }
+    animFrame = requestAnimationFrame(tick)
+  }
+
+  const stopAnim = () => {
+    shader.stop()
+    cancelAnimationFrame(animFrame)
+  }
+
   const start = () => {
     isPlaying = true
     playNext()
+    startAnim()
     toggle = () => {
       bufferSourceNode?.stop(0)
+      stopAnim()
       offsetTime = 0
       isPlaying = false
       isRendering = false

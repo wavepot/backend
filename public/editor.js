@@ -267,44 +267,48 @@ class Editor {
       e.stopPropagation?.();
     }
 
-    // remove editor
-    if ((data.ctrlKey || data.metaKey) && data.key === 'b') {
-      const { title } = this.focusedEditor;
-      if (confirm('Are you sure you want to delete ' + title + '?')) {
-        this.worker.postMessage({
-          call: 'deleteEditor',
-          id: this.focusedEditor.id
-        });
-      }
-    }
-
-    // add editor
-    if ((data.ctrlKey || data.metaKey) && data.key === ',') {
-      this.ontoadd?.();
-    }
-
-    // rename editor
-    if ((data.ctrlKey || data.metaKey) && data.key === 'm') {
-      // TODO: completely hacky way to remove the textarea while
-      // there is title change
-      methods.events.setTarget('hover', null, new MouseEvent('mouseout'));
-      e.preventDefault();
-      ask('Change name', `Type a new name for "${this.focusedEditor.title}"`,
-        this.focusedEditor.title).then(async (result) => {
-        if (!result) return
-        // if (this.id === this.focusedEditor.id) {
-        //   const oldTitle = this.title
-        //   this.title = result.value
-        //   // this.onrename?.(oldTitle, this.title)
-        // }
-        this.worker
-          .postMessage({
-            call: 'renameEditor',
-            id: this.focusedEditor.id,
-            title: result.value
+    if (eventName === 'onkeydown') {
+      // remove editor
+      if (data.cmdKey && data.key === 'b') {
+        const { title } = this.focusedEditor;
+        if (confirm('Are you sure you want to delete ' + title + '?')) {
+          this.worker.postMessage({
+            call: 'deleteEditor',
+            id: this.focusedEditor.id
           });
-      });
-      return false
+        }
+      }
+
+      // add editor
+      if (data.cmdKey && data.key === 'u') {
+        e.preventDefault();
+        this.ontoadd?.(); // ontoadd because onadd is fired from when editor is added
+        return false
+      }
+
+      // rename editor
+      if (data.cmdKey && data.key === 'm') {
+        // TODO: completely hacky way to remove the textarea while
+        // there is title change
+        methods.events.setTarget('hover', null, new MouseEvent('mouseout'));
+        e.preventDefault();
+        ask('Change name', `Type a new name for "${this.focusedEditor.title}"`,
+          this.focusedEditor.title).then(async (result) => {
+          if (!result) return
+          // if (this.id === this.focusedEditor.id) {
+          //   const oldTitle = this.title
+          //   this.title = result.value
+          //   // this.onrename?.(oldTitle, this.title)
+          // }
+          this.worker
+            .postMessage({
+              call: 'renameEditor',
+              id: this.focusedEditor.id,
+              title: result.value
+            });
+        });
+        return false
+      }
     }
 
     this.worker.postMessage({ call: eventName, ...data });
@@ -648,6 +652,8 @@ const eventHandlers = {
     } = e;
     const cmdKey = isMac ? metaKey : ctrlKey;
     if (cmdKey && key === 'r') return false
+    if (cmdKey && key === '+') return false
+    if (cmdKey && key === '-') return false
     // if (cmdKey && key === 'z') return false
     // if (cmdKey && key === 'y') return false
     if (cmdKey && key === 'c') return false

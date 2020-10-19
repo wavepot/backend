@@ -3808,7 +3808,7 @@ class Editor {
 
       if (type === 'newline') {
         back.fillStyle = 'rgba(0,0,0,.7)';
-        back.fillRect(0, y-1.5, this.char.width * (index - lastNewLine) + 4, fh);
+        back.fillRect(0, y-1.5, this.char.width * (index - lastNewLine) + 8, fh);
 
         for (const [type, string, x, y] of queue) {
           text.fillStyle = theme[type];
@@ -3842,7 +3842,7 @@ class Editor {
 
     if (queue.length) {
       back.fillStyle = 'rgba(0,0,0,.7)';
-      back.fillRect(0, y-1.5, this.char.width * (idx - lastNewLine + queue[queue.length-1][1].length) + 4, fh);
+      back.fillRect(0, y-1.5, this.char.width * (idx - lastNewLine + queue[queue.length-1][1].length) + 8, fh);
       // text.fillRect(0, y, this.char.width * string.length + 4, fh)
       for (const [type, string, x, y] of queue) {
         text.fillStyle = theme[type];
@@ -4728,7 +4728,7 @@ class Editor {
 
       case 'PageUp': {
         const caretPos = this.caret.pos.copy();
-        this.applyCaretDiff(this.moveByLines(-this.page.lines), true);
+        this.applyCaretDiff(this.moveByLines((-this.page.lines/2)|0), true);
         if (e.shiftKey) this.markSet();
         else {
           if (caretPos.equal(this.caret.pos)) {
@@ -4739,7 +4739,7 @@ class Editor {
       break
       case 'PageDown': {
         const caretPos = this.caret.pos.copy();
-        this.applyCaretDiff(this.moveByLines(+this.page.lines), true);
+        this.applyCaretDiff(this.moveByLines((+this.page.lines/2)|0), true);
         if (e.shiftKey) this.markSet();
         else {
           if (caretPos.equal(this.caret.pos)) {
