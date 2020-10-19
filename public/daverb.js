@@ -212,7 +212,7 @@ export default class DattorroReverb {
         - this.readDelayAt(10, this._taps[12])
         - this.readDelayAt(11, this._taps[13]);
 
-      let out = x0*dr + (lo+ro)*we*.5
+      // let out = x0*dr + (lo+ro)*we*.5
       // outputs[0][0][i] += lo * we;
       // outputs[0][1][i] += ro * we;
 
@@ -229,6 +229,6 @@ export default class DattorroReverb {
     // Update preDelay index
     this._pDWrite = (this._pDWrite + 1) % this._pDLength;
 
-    return out;
+    return [x0*dr + lo*we, x0*dr + ro*we] // out;
   }
 }

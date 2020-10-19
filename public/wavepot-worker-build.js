@@ -456,9 +456,9 @@ class Sound {
   }
 
   // TODO: improve this
-  play (x,offset=0,speed=1) {
-    let N = x.length;
-    this.x0 = x[(( ( (this.p+offset)*speed) % N + N) % N)|0];
+  play (x,offset=0,speed=1,mod) {
+    let N = mod ?? x.length;
+    this.x0 = x[(( ( (this.p+offset)*speed) % N + N) % N)|0] ?? 0;
     return this
   }
 
@@ -470,13 +470,22 @@ class Sound {
 
   daverb (x={}) {
     let d = _daverbs[_daverbs_i++];
-    this.x0 = d.process(this.x0, x);
+    let LR = d.process(this.x0, x);
+    this.Lx0 = LR[0];
+    this.Rx0 = LR[1];
+    this.out = this.stout;
     return this
   }
 
-  panout (LR=0,x=1) { // -1..+1  0=center
+  panout (x=1,LR=0) { // -1..+1  0=center
     main.Lx0 += this.x0 * x * (1-(.5 + .5*LR));
     main.Rx0 += this.x0 * x *    (.5 + .5*LR);
+    return this
+  }
+
+  stout (x=1,LR=0) {
+    main.Lx0 += this.Lx0 * x * (2-(1 + 1*LR));
+    main.Rx0 += this.Rx0 * x *    (1 + 1*LR);
     return this
   }
 
@@ -878,7 +887,7 @@ class DattorroReverb {
         - this.readDelayAt(10, this._taps[12])
         - this.readDelayAt(11, this._taps[13]);
 
-      let out = x0*dr + (lo+ro)*we*.5;
+      // let out = x0*dr + (lo+ro)*we*.5
       // outputs[0][0][i] += lo * we;
       // outputs[0][1][i] += ro * we;
 
@@ -895,7 +904,7 @@ class DattorroReverb {
     // Update preDelay index
     this._pDWrite = (this._pDWrite + 1) % this._pDLength;
 
-    return out;
+    return [x0*dr + lo*we, x0*dr + ro*we] // out;
   }
 }
 
