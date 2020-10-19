@@ -137,4 +137,45 @@ main.tanh(1.5)
   .on(8,2).grp()
     .bp(3000+mod(16,.06).cos(sync(16))*2800,4)
     .vol('.7 1.2 1.4 1.9 1.9 2.1 2.2 2.3'.seq(1/4))
-  .end().plot()`]
+  .end().plot()`,`// Find Me
+
+bpm(133)
+
+mod(1/4,.5).sin(50+mod(1/4).val(70).exp(14))
+  .soft(1)
+  .exp(15)
+  .soft(2.5)
+  .tanh(1.5)
+  .daverb({
+    dry: .7,
+    wet:.18,
+    bandwidth: .21,
+    decay: .43,
+    preDelay: 8200,
+    inputDiffusion1: .94,
+    inputDiffusion2: .95,
+    decayDiffusion1: .89,
+    decayDiffusion2: .88,
+    damping: .8,
+    excursionRate: .59,
+    excursionDepth: .29,
+  })
+  .out().plot(10)
+
+mod(1/16).play('freesound:183105'.sample[0],0,1.6,bar)
+  .vol('.1 .4 1 .4 .1 .3 1 .7'.seq(1/16))
+  .daverb({wet:.07})
+  .out(.18)
+
+mod(1/8,.5).tri('f f f5 f6'.slide(1/16,4).note/20)
+  .soft(8)
+  .exp(10)
+  .soft(15)
+  .lp(1300,.32)
+  .lp(1000+sin(sync(64))*400,1.5)
+  .daverb()
+  .out()
+
+mod(1/16).play('freesound:117085'.sample[0],0,val(1).on(16,1/2).val(2).on(38,1/8).val(4),bar)
+  .daverb({wet:.19})
+  .out(.23)`]
