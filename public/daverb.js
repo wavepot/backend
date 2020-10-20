@@ -121,7 +121,7 @@ export default class DattorroReverb {
 
   // First input will be downmixed to mono if number of channels is not 2
   // Outputs Stereo.
-  process(x0, parameters) {
+  process(Lx0, Rx0, parameters) {
     parameters = { ...this.defaultValues, ...parameters }
 
     const
@@ -139,7 +139,7 @@ export default class DattorroReverb {
         dr   = parameters.dry                 ;
 
 
-    this._preDelay[this._pDWrite] = x0*.5
+    this._preDelay[this._pDWrite] = (Lx0 + Rx0) *.5
 
     // // write to predelay and dry output
     // if (inputs[0].length == 2) {
@@ -229,6 +229,6 @@ export default class DattorroReverb {
     // Update preDelay index
     this._pDWrite = (this._pDWrite + 1) % this._pDLength;
 
-    return [x0*dr + lo*we, x0*dr + ro*we] // out;
+    return [Lx0*dr + lo*we, Rx0*dr + ro*we] // out;
   }
 }

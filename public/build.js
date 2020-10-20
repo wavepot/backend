@@ -838,7 +838,8 @@ pulse(
   .lp(700,1.2)
   .on(4,8).delay(1/(512+200*mod(1).sin(1)),.8)
   .on(1,8,16).vol(0)
-  .out(.35)
+  .widen(.4)
+  .out(.35,.15)
 
 mod(1/16).noise(333).exp(30)
   .vol('.1 .4 1 .4'.seq(1/16))
@@ -846,20 +847,23 @@ mod(1/16).noise(333).exp(30)
   .hs(16000)
   .bp(500+mod(1/4).val(8000).exp(2.85),.5,.5)
   .on(8,2).vol(0)
-  .out(.2)
+  .widen(.7)
+  .out(.2,.3)
 
-mod(1/2).play('freesound:220752'.sample[0],-19025,1)
+mod(1/2).stereo().play('freesound:220752'.sample,-19025,1)
   .vol('- - 1 -'.slide(1/8,.5))
   .vol('- - 1 .3'.seq(1/8))
   .tanh(2)
+  .widen(.04)
   .out(.3)
 
-mod(4).play('freesound:243601'.sample[0],46000,.95)
+mod(4).stereo().play('freesound:243601'.sample,46000,.95)
   .vol('- - - - - - 1 1 .8 - - - - - - -'.seq(1/16))
   .on(16,1).val(0)
   .delay(1/[100,200].seq(4))
   .daverb()
-  .out(.4)
+  .widen(.9)
+  .out(.23)
 
 on(1,1,8).grp()
   .noise()
@@ -868,7 +872,9 @@ on(1,1,8).grp()
   .out(.08)
 .end()
 
-main.tanh(1.5)
+main
+  .stereo()
+  .tanh(1.5)
   .on(8,2).grp()
     .bp(3000+mod(16,.06).cos(sync(16))*2800,4)
     .vol('.7 1.2 1.4 1.9 1.9 2.1 2.2 2.3'.seq(1/4))
@@ -944,25 +950,30 @@ mod(1/4,.5).sin(50+mod(1/4).val(70).exp(14))
     excursionRate: .59,
     excursionDepth: .29,
   })
-  .out().plot(10)
+  .out(val(1).on(8,16).val(0)).plot(10)
 
-mod(1/16).play('freesound:183105'.sample[0],0,1.6,bar)
+mod(1/16).play('freesound:183105'.sample,0,1.6,bar)
   .vol('.1 .4 1 .4 .1 .3 1 .7'.seq(1/16))
   .daverb({wet:.07})
-  .out(.18)
+  .widen(.18)
+  .out(.18,.3)
 
 mod(1/8,.5).tri('f f f5 f6'.slide(1/16,4).note/20)
   .soft(8)
   .exp(10)
-  .soft(15)
+  .soft(18)
   .lp(1300,.32)
   .lp(1000+sin(sync(64))*400,1.5)
-  .daverb()
-  .out()
+  .on(8,16).bp(600+sin(sync(128))*300,1)
+  .daverb({wet:.15})
+  .widen(.12)
+  .out(1,.18)
 
-mod(1/16).play('freesound:117085'.sample[0],0,val(1).on(16,1/2).val(2).on(38,1/8).val(4),bar)
-  .daverb({wet:.19})
-  .out(.23)`];
+mod(1/16).stereo().play('freesound:117085'.sample,0,
+  val(val(1).on(9,16,16).val(3).on(10,16,16).val(4))
+     .on(16,1/2).val(2).on(38,1/8).val(4))
+  .daverb({wet:.07})
+  .out(.2)`];
 
 const getContext = (canvas, { alpha = true, antialias = false } = {}) => {
   const gl = canvas.getContext('webgl2', { alpha, antialias });
@@ -2140,7 +2151,7 @@ const shader = new Shader(container);
 
 let editor;
 const FILE_DELIMITER = '\n/* -^-^-^-^- */\n';
-let label = 'lastV7';
+let label = 'lastV8';
 let tracks = localStorage[label];
 if (tracks) tracks = tracks.split(FILE_DELIMITER).map(track => JSON.parse(track));
 else tracks = initial.map(value => ({ id: ((Math.random()*10e6)|0).toString(36), value }));

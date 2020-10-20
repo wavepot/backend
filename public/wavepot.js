@@ -66,7 +66,7 @@ const shader = new Shader(container)
 
 let editor
 const FILE_DELIMITER = '\n/* -^-^-^-^- */\n'
-let label = 'lastV7'
+let label = 'lastV8'
 let tracks = localStorage[label]
 if (tracks) tracks = tracks.split(FILE_DELIMITER).map(track => JSON.parse(track))
 else tracks = initial.map(value => ({ id: ((Math.random()*10e6)|0).toString(36), value }))
