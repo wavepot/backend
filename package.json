@@ -16,7 +16,7 @@
     "morgan": "^1.10.0",
     "node-fetch": "^2.6.0",
     "puppeteer": "^5.2.1",
-    "ytdl-core": "^3.2.2"
+    "ytdl-core": "^3.4.1"
   },
   "devDependencies": {
     "chai": "^4.2.0",

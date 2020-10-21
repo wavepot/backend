@@ -62,7 +62,8 @@ const setHeaders = (res, path, stat) => {
     res.set('content-type', res.__mimetype)
   }
 }
-const cacheStatic = express.static(CACHE_PATH, { maxAge: 1000 * 60 * 60 * 24 * 30 * 6, setHeaders })
+const cacheStatic = express.static(CACHE_PATH, { immutable: true, maxAge: 1000 * 60 * 60 * 24 * 30 * 6, setHeaders })
+const fetching = new Set
 app.get('/fetch', async (req, res, next) => {
   const url = req.query.url
   const slug = url.replace(/[^a-z0-9]/gi, '-')
@@ -70,6 +71,14 @@ app.get('/fetch', async (req, res, next) => {
 
   req.url = '/' + slug
   cacheStatic(req, res, async () => {
+    if (fetching.has(slug)) {
+      res.status(500)
+      res.end()
+      return
+    }
+
+    fetching.add(slug)
+
     try {
       let response
 
@@ -88,8 +97,8 @@ app.get('/fetch', async (req, res, next) => {
         const start = 5
         const end = 7
         const duration = end-start
-        const { stdout } = await exec(`ffmpeg -ss ${start} -i ${'"'+format.url.replace(/(["\s'$`\\])/g,'\\$1')+'"'} -t ${duration} -f ${format.container} -c copy ${outFilePath}`)
-        console.log(stdout)
+        const { stdout } = await exec(`ffmpeg -ss ${start} -i ${'"'+format.url.replace(/(["\s'$`\\])/g,'\\$1')+'"'} -t ${duration} -f ${format.container} -vcodec libvpx-vp9 -an ${outFilePath}`)
+        fetching.delete(slug)
         return cacheStatic(req, res, next)
       } else {
         response = await fetch(url)
@@ -98,16 +107,18 @@ app.get('/fetch', async (req, res, next) => {
       if (!response.ok) throw new Error(`unexpected response ${response.statusText}`)
       await pipeline(response.body, fs.createWriteStream(path.join(CACHE_PATH, slug)))
     } catch (error) {
+      fetching.delete(slug)
       console.error(error)
       res.status(500)
       res.end()
       return
     }
+    fetching.delete(slug)
     cacheStatic(req, res, next)
   })
 })
 
-app.use(express.static(PUBLIC_PATH, { maxAge: 1000 * 60 * 60 * 24 }))
+app.use(express.static(PUBLIC_PATH)) //, { maxAge: 1000 * 60 * 60 * 24 })) // TODO: enable caching in release
 app.use(express.static(META_PATH, { maxAge: 1000 * 60 * 60 * 24 * 30 * 6 }))
 
 app.get('/:project/:id', async (req, res, next) => {
@@ -138,6 +149,7 @@ app.use(express.static(PROJECTS_PATH, {
   setHeaders (res, path, stat) {
     res.set('Content-Type', 'application/json')
   },
+  immutable: true,
   maxAge: 1000 * 60 * 60 * 24 * 30 * 6
 }))
 

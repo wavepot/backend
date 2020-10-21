@@ -92,7 +92,7 @@ class Editor {
     this.canvas.style.height = data.height + 'px';
 
     if (!this.pseudoWorker) {
-      const workerUrl = new URL('worker.js', import.meta.url).href;
+      const workerUrl = new URL('editor-worker.js', import.meta.url).href;
       this.worker = new Worker(workerUrl, { type: 'module' });
       this.worker.onerror = error => this._onerror(error);
       this.worker.onmessage = ({ data }) => this['_' + data.call](data);
@@ -102,10 +102,18 @@ class Editor {
   }
 
   async setupPseudoWorker () {
-    const PseudoWorker = await import(new URL('worker.js', import.meta.url));
+    const PseudoWorker = await import(new URL('editor-worker.js', import.meta.url));
     this.worker = new PseudoWorker();
     this.worker.onerror = error => this._onerror(error);
     this.worker.onmessage = ({ data }) => this['_' + data.call](data);
+  }
+
+  setColor (color) {
+    this.worker.postMessage({ call: 'setColor', color });
+  }
+
+  setEditorById (id) {
+    this.worker.postMessage({ call: 'setEditorById', id });
   }
 
   destroy () {
@@ -320,7 +328,7 @@ const methods = {};
 const registerEvents = (parent) => {
   textarea = document.createElement('textarea');
   textarea.style.position = 'fixed';
-  textarea.style.zIndex = 1000;
+  textarea.style.zIndex = 100;
   // textarea.style.left = (e.clientX ?? e.pageX) + 'px'
   // textarea.style.top = (e.clientY ?? e.pageY) + 'px'
   textarea.style.width = '100px';
@@ -330,6 +338,7 @@ const registerEvents = (parent) => {
   textarea.style.opacity = 0;
   textarea.style.visibility = 'none';
   textarea.style.resize = 'none';
+  textarea.style.cursor = 'default';
   textarea.autocapitalize = 'none';
   textarea.autocomplete = 'off';
   textarea.spellchecking = 'off';
@@ -683,8 +692,8 @@ class Shared32Array {
 }
 
 class Rpc {
-  #callbackId = 0
-  #callbacks = new Map
+  callbackId = 0
+  callbacks = new Map
 
   constructor () {}
 
@@ -694,10 +703,10 @@ class Rpc {
 
   rpc (method, data, tx) {
     return new Promise((resolve, reject) => {
-      const id = this.#callbackId++;
+      const id = this.callbackId++;
 
-      this.#callbacks.set(id, data => {
-        this.#callbacks.delete(id);
+      this.callbacks.set(id, data => {
+        this.callbacks.delete(id);
         if (data.error) reject(data.error);
         else resolve(data);
       });
@@ -707,7 +716,7 @@ class Rpc {
   }
 
   callback (data) {
-    this.#callbacks.get(data.responseCallback)(data.data ?? data);
+    this.callbacks.get(data.responseCallback)(data.data ?? data);
   }
 
   register (port) {
@@ -749,9 +758,7 @@ class Rpc {
   }
 }
 
-// hacky way to switch api urls from dev to prod
-const API_URL = location.port.length === 4
-  ? 'http://localhost:3000' : location.origin;
+const API_URL = !location.port ? location.origin : 'http://localhost:3000';
 
 let samples = new Map;
 
@@ -782,198 +789,11 @@ const getFetchUrl = (remoteUrl) => {
   return url
 };
 
-var initial = [`/// guide
-// ctrl+enter - start/stop
-// ctrl+. - update sound
-// bpm(bpm) - set bpm
-// mod(sig) - modulo sound to time signature
-// sin(hz) tri(hz) saw(hz) ramp(hz) pulse(hz) sqr(hz) noise(seed) - oscillator sound generators
-// val(x) - explicit set sound to x
-// vol(x)/mul(x) - multiply sound by x (set volume)
-// exp(x) - exponential curve
-// tanh(x) - hyperbolic tangent s-curve
-// on(x,sig,count).dothis() - schedule 'dothis()' to execute when 'x' is reached, in time signature 'sig', looping on 'count'
-// on(...).grp().many().calls().together().end() - group many calls together, must call .end() in the end
-// out(vol=1) - send sound to main
-// plot(zoom=1) - plot sound
-// lp1(f) hp1(f) lp(f,q) hp(f,q) bp(f,q) bpp(f,q) ap(f,q) pk(f,q,gain) ls(f,q,gain) hs(f,q,gain) - biquad filters
-// delay(sig,feedback,amount) - add delay to sound
-// daverb(opts) - add dattorro reverb to sound
-// [1,2,3,4].seq(sig) - sequence values to time signature
-// [1,2,3,4].slide(sig,speed) - slide values to time signature with sliding speed
-// '1 - 1 -'.pat - parses and returns a pattern array
-// 'a b c d'.pat - returns an array of note numbers
-// 10..note - returns the hz of a number
-// 'a b c d'.seq(sig) - shortcut to .pat.seq()
-// '1 2 3 4'.slide(sig,speed) - shortcut to .pat.slide()
-// example: 'a4 b4 c3 d#3'.seq(sig).note will sequence the hz of these notes
-// play(buffer,offset=0,speed=1) - playback an array-like buffer starting at offset and using speed
-// 'freesound:123456'.sample - fetches a sample from https://freesound.org/ and returns it as a stereo or mono array
-// example: mod(1/2).play('freesound:220752'.sample[0],-19025,1)
-
-// Techno. Chrome. Dance. This.
-
-bpm(120)
-
-yt(['FJ3N_2r6R-o','guVAeFs5XwE','oHg5SJYRHA0'].seq(2))
-  [['pixelmess','noop'].seq(1)](2)
-  .wobble(1)
-  .mirror([2.5,5,.5,1,3].seq(1/4))
-  .glitch()
-  .out()
-
-mod(1/4).sin(mod(1/4).val(42.881).exp(.057))
-  .exp(8.82).tanh(15.18)
-  .on(8,1).val(0)
-  .out(.4)
-
-pulse(
-  val(50)
-  .on(8,1/8).val(70)
-  .on(8,1/2,16).mul(1.5)
-  .on(16,1/2).mul(2)
-  .on(4,16).mul(1.5)
-).mod(1/16).exp(10)
-  .vol('.1 .1 .5 1'.seq(1/16))
-  .lp(700,1.2)
-  .on(4,8).delay(1/(512+200*mod(1).sin(1)),.8)
-  .on(1,8,16).vol(0)
-  .widen(.4)
-  .out(.35,.15)
-
-mod(1/16).noise(333).exp(30)
-  .vol('.1 .4 1 .4'.seq(1/16))
-  .on(8,1/4).mul('1.5 13'.seq(1/32))
-  .hs(16000)
-  .bp(500+mod(1/4).val(8000).exp(2.85),.5,.5)
-  .on(8,2).vol(0)
-  .widen(.7)
-  .out(.2,.3)
-
-mod(1/2).stereo().play('freesound:220752'.sample,-19025,1)
-  .vol('- - 1 -'.slide(1/8,.5))
-  .vol('- - 1 .3'.seq(1/8))
-  .tanh(2)
-  .widen(.04)
-  .out(.3)
-
-mod(4).stereo().play('freesound:243601'.sample,46000,.95)
-  .vol('- - - - - - 1 1 .8 - - - - - - -'.seq(1/16))
-  .on(16,1).val(0)
-  .delay(1/[100,200].seq(4))
-  .daverb()
-  .widen(.9)
-  .out(.23)
-
-on(1,1,8).grp()
-  .noise()
-  .bp(6000)
-  .bp(14000)
-  .out(.08)
-.end()
-
-main
-  .stereo()
-  .tanh(1.5)
-  .on(8,2).grp()
-    .bp(3000+mod(16,.06).cos(sync(16))*2800,4)
-    .vol('.7 1.2 1.4 1.9 1.9 2.1 2.2 2.3'.seq(1/4))
-  .end().plot()`,`// Techno. Yo.
-
-bpm(100)
-
-mod(val(1/4).on(8,1).val(1/8).on(16,1/2).val(1/16))
-  .sin(mod(1/4).val(42.881).exp(.057))
-  .exp(8.82).tanh(15.18)
-  .on(16,1).val(0)
-  .out(.4)
-
-saw('d d# f f#'.seq(1/4).note/4)
-  .mod(1/16).exp(10)
-  .vol('.5 .1 .5 1'.seq(1/4))
-  .lp(1800,1.2)
-  .delay(1/[200,150].seq(4))
-  .on(1,8,16).vol(0)
-  .out(.35)
-
-mod(1/16).noise(70).exp(19)
-  .vol('.1 .4 1 .4'.seq(1/16))
-  .on(8,1/4).mul('2 1'.seq(1/15))
-  .bp(2500+mod(1/8).val(2000).exp(2.85),1.2,.5)
-  .on(8,2).vol(0)
-  .out(.2)
-
-mod(1/2).play('freesound:220752'.sample[0],-19025,1)
-  .vol('- - 1 -'.slide(1/8,.5))
-  .vol('- - 1 .3'.seq(1/8))
-  .tanh(2)
-  .out(.7)
-
-mod(4).play('freesound:243601'.sample[0],26000,1.1)
-  .vol('- - - - - - 1 1 .8 - - - - - - -'.seq(1/16))
-  .on(16,1).val(0)
-  .delay(1/[100,200].seq(4))
-  .daverb()
-  .out(.4)
-
-on(1,1,8).grp()
-  .noise()
-  .bp(6000)
-  .bp(14000)
-  .out(.08)
-.end()
-
-main.tanh(1.5)
-  .on(8,2).grp()
-    .bp(3000+mod(16,.06).cos(sync(16))*2800,4)
-    .vol('.7 1.2 1.4 1.9 1.9 2.1 2.2 2.3'.seq(1/4))
-  .end().plot()`,`// Find Me
-
-bpm(133)
-
-mod(1/4,.5).sin(50+mod(1/4).val(70).exp(14))
-  .soft(1)
-  .exp(15)
-  .soft(2.5)
-  .tanh(1.5)
-  .daverb({
-    dry: .7,
-    wet:.18,
-    bandwidth: .21,
-    decay: .43,
-    preDelay: 8200,
-    inputDiffusion1: .94,
-    inputDiffusion2: .95,
-    decayDiffusion1: .89,
-    decayDiffusion2: .88,
-    damping: .8,
-    excursionRate: .59,
-    excursionDepth: .29,
-  })
-  .out(val(1).on(8,16).val(0)).plot(10)
-
-mod(1/16).play('freesound:183105'.sample,0,1.6,bar)
-  .vol('.1 .4 1 .4 .1 .3 1 .7'.seq(1/16))
-  .daverb({wet:.07})
-  .widen(.18)
-  .out(.18,.3)
-
-mod(1/8,.5).tri('f f f5 f6'.slide(1/16,4).note/20)
-  .soft(8)
-  .exp(10)
-  .soft(18)
-  .lp(1300,.32)
-  .lp(1000+sin(sync(64))*400,1.5)
-  .on(8,16).bp(600+sin(sync(128))*300,1)
-  .daverb({wet:.15})
-  .widen(.12)
-  .out(1,.18)
-
-mod(1/16).stereo().play('freesound:117085'.sample,0,
-  val(val(1).on(9,16,16).val(3).on(10,16,16).val(4))
-     .on(16,1/2).val(2).on(38,1/8).val(4))
-  .daverb({wet:.07})
-  .out(.2)`];
+var initial = `{"id":"4moxr","value":"bpm(120)\n\ncolor('#f10')\n\nyt(['FJ3N_2r6R-o','guVAeFs5XwE','oHg5SJYRHA0'].seq(2))\n  [['pixelmess','noop'].seq(1)](2)\n  .wobble(1)\n  .mirror([2.5,5,.5,1,3].seq(1/4))\n  .glitch()\n  .out()\n\nmod(1/4).sin(mod(1/4).val(42.881).exp(.057))\n  .exp(8.82).tanh(15.18)\n  .on(8,1).val(0)\n  .out(.4)\n\npulse(\n  val(50)\n  .on(8,1/8).val(70)\n  .on(8,1/2,16).mul(1.5)\n  .on(16,1/2).mul(2)\n  .on(4,16).mul(1.5)\n).mod(1/16).exp(10)\n  .vol('.1 .1 .5 1'.seq(1/16))\n  .lp(700,1.2)\n  .on(4,8).delay(1/(512+200*mod(1).sin(1)),.8)\n  .on(1,8,16).vol(0)\n  .widen(.4)\n  .out(.35)\n\nmod(1/16).noise(333).exp(30)\n  .vol('.1 .4 1 .4'.seq(1/16))\n  .on(8,1/4).mul('1.5 13'.seq(1/32))\n  .hs(16000)\n  .bp(500+mod(1/4).val(8000).exp(2.85),.5,.5)\n  .on(8,2).vol(0)\n  .widen(.7)\n  .out(.2)\n\nmod(1/2).play('freesound:220752'.sample,-19025,1)\n  .vol('- - 1 -'.slide(1/8,.5))\n  .vol('- - 1 .3'.seq(1/8))\n  .tanh(2)\n  .widen(.04)\n  .out(.3)\n\nmod(4).play('freesound:243601'.sample,46000,.95)\n  .vol('- - - - - - 1 1 .8 - - - - - - -'.seq(1/16))\n  .on(16,1).val(0)\n  .delay(1/[100,200].seq(4))\n  .daverb(.2,5352)\n  .out(.23)\n\non(1,1,8).grp()\n  .noise()\n  .bp(6000)\n  .bp(14000)\n  .out(.08)\n.end()\n\nmain\n  .on(8,2)\n  .grp()\n    .bp(3000+mod(16,.06).cos(sync(16))*2800,4)\n    .pan(sin(sync(8)))\n  .end()\n  .tanh(1.5)\n  .plot()","title":"Techno. Chrome. Dance. This."}
+/* -^-^-^-^- */
+{"id":"34cqq","value":"bpm(100)\n\ncolor('#46f')\n\nmod(val(1/4).on(8,1).val(1/8).on(16,1/2).val(1/16))\n  .sin(mod(1/4).val(42.881).exp(.057))\n  .exp(8.82).tanh(15.18)\n  .on(16,1).val(0)\n  .out(.4)\n\nsaw('d d# f f#'.seq(1/4).note/4)\n  .mod(1/16).exp(10)\n  .vol('.5 .1 .5 1'.seq(1/4))\n  .lp(1800,1.2)\n  .delay(1/[200,150].seq(4))\n  .on(1,8,16).vol(0)\n  .out(.35)\n\nmod(1/16).noise(70).exp(19)\n  .vol('.1 .4 1 .4'.seq(1/16))\n  .on(8,1/4).mul('2 1'.seq(1/15))\n  .bp(2500+mod(1/8).val(2000).exp(2.85),1.2,.5)\n  .on(8,2).vol(0)\n  .out(.2)\n\nmod(1/2).play('freesound:220752'.sample,-19025,1)\n  .vol('- - 1 -'.slide(1/8,.5))\n  .vol('- - 1 .3'.seq(1/8))\n  .tanh(2)\n  .out(.7)\n\nmod(4).play('freesound:243601'.sample,26000,1.1)\n  .vol('- - - - - - 1 1 .8 - - - - - - -'.seq(1/16))\n  .on(16,1).val(0)\n  .delay(1/[100,200].seq(4))\n  .daverb()\n  .out(.4)\n\non(1,1,8).grp()\n  .noise()\n  .bp(6000)\n  .bp(14000)\n  .out(.08)\n.end()\n\nmain.tanh(1)\n  .on(8,2).grp()\n    .bp(3000+mod(16,.06).cos(sync(16))*2800,4)\n    .vol('.7 1.2 1.4 1.9 1.9 2.1 2.2 2.3'.seq(1/4))\n  .end().plot()","title":"Techno. Yo."}
+/* -^-^-^-^- */
+{"id":"4qfhk","value":"bpm(133)\n\ncolor('#2f0')\n\nyt(['PcI8Kq9y6cA'].seq(1))\n  .mirror([.5,1,1.6,2.1,1.2,2.5].seq(1/4))\n  .glitch()\n  .out()\n\nmod(1/4,.5).sin(50+mod(1/4).val(70).exp(14))\n  .soft(1)\n  .exp(15)\n  .soft(2.5)\n  .tanh(1.5)\n  .daverb(.5,14552)\n  .out(val(1).on(8,16).val(0)).plot(10)\n\nmod(1/16).play('freesound:183105'.sample,0,1.6,bar)\n  .vol('.1 .4 1 .4 .1 .3 1 .7'.seq(1/16))\n  .daverb(.07,1222)\n  .widen(.78)\n  .out(.18)\n\nmod(1/8,.5).tri('f f f5 f6'.slide(1/16,4).note/20)\n  .soft(8)\n  .exp(10)\n  .soft(18)\n  .lp(1300,.32)\n  .lp(1000+sin(sync(64))*400,1.5)\n  .on(8,16).bp(600+sin(sync(128))*300,1)\n  .daverb(.27,1225)\n  .widen(.04)\n  .out(.8)\n\nmod(1/16).play('freesound:117085'.sample,0,\n  val(val(1).on(9,16,16).val(3).on(10,16,16).val(4))\n     .on(16,1/2).val(2).on(38,1/8).val(4))\n  .daverb(.25,1666)\n  .out(.27)","title":"Find Me"}`.replaceAll('\n/* -^-^-^-^- */\n', '!!!').replaceAll('\n', '\\n').replaceAll('!!!','\n/* -^-^-^-^- */\n');
 
 const getContext = (canvas, { alpha = true, antialias = false } = {}) => {
   const gl = canvas.getContext('webgl2', { alpha, antialias });
@@ -1072,24 +892,6 @@ const putSubTexture = (gl, {
   gl.bindTexture(target, texture);
   gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, flipY);
   gl.texSubImage2D(target, level, xOffset, yOffset, width, height, format, type, data);
-  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
-  gl.bindTexture(target, null);
-};
-
-const putSubTexture1 = (gl, {
-  texture = createTexture(gl),
-  target = gl.TEXTURE_2D,
-  level = 0,
-  xOffset = 0,
-  yOffset = 0,
-  format = gl.RGBA,
-  type = gl.UNSIGNED_BYTE,
-  data = null,
-  flipY = false,
-}) => {
-  gl.bindTexture(target, texture);
-  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, flipY);
-  gl.texSubImage2D(target, level, xOffset, yOffset, format, type, data);
   gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
   gl.bindTexture(target, null);
 };
@@ -1419,7 +1221,9 @@ var Video = (gl, url) => {
 
   const updateVideo = () => {
     if (video.readyState < 2) return
-    putSubTexture1(gl, {
+    // NOTE: this used to be putSubTexture1
+    // but turns out putTexture1 is 4x-5x faster
+    putTexture1(gl, {
       texture,
       data: video,
       // flipY: true
@@ -1853,6 +1657,7 @@ self.t = 0;
 self.frame = 0;
 self.pixelRatio = window.devicePixelRatio;
 
+self.color = '#f00';
 self.videos = {};
 self.screens = [];
 self.scale = 2;
@@ -2038,6 +1843,13 @@ class Screen {
     return this
   }
 
+  color (color) {
+    if (color !== self.color) {
+      self.color = color;
+      self.editor.setColor(color);
+    }
+  }
+
   glitch () {
     this.screen.update();
     this.programs.glitch(this);
@@ -2090,6 +1902,112 @@ return screens[screens_i++].${method}(${argNames})
   );
 });
 
+// dom helpers
+
+const El = (className = '', html = '', props = {}) => {
+  const el = document.createElement(props.tag ?? 'div');
+  el.className = className;
+  el.innerHTML = html;
+  Object.assign(el, props);
+  return el
+};
+
+const Button = (className, html, props = {}) =>
+  El(className, html, { ...props, tag: 'button' });
+
+const Icon = (size, name, path, extra = '') =>
+  Button(`icon ${name}`, `<svg
+    xmlns="http://www.w3.org/2000/svg"
+    width="${size}"
+    height="${size}"
+    viewBox="0 0 32 32"
+    ><path class="path" d="${path}" />${extra}</svg>`);
+
+class ButtonLogo {
+  constructor (el) {
+    this.el = el;
+    this.logo = Icon(23, 'logo', 'M4.9 6 A 13.8 13.8 0 1 0 27.4 6', '<path class="path wave" d="M9.7 13.5 Q12 10.5, 15.5 13.9 T 22 13.9" />');
+    this.logo.onclick = () => this.onclick?.();
+    this.el.appendChild(this.logo);
+  }
+}
+
+class ButtonPlayPause {
+  constructor (el, size = 21) {
+    this.el = el;
+    this.play = Icon(size, 'play', 'M6 2 L6 28 26 15 Z');
+    this.pause = Icon(size, 'play pause', 'M18 2 L18 28 M6 2 L6 28');
+    this.play.onmousedown = () => {
+      // this.setIconPause()
+      this.onplay?.();
+    };
+    this.pause.onmousedown = () => {
+      // this.setIconPlay()
+      this.onpause?.();
+    };
+    this.setIconPause = () => {
+      this.play.parentNode.replaceChild(this.pause, this.play);
+    };
+    this.setIconPlay = () => {
+      this.pause.parentNode.replaceChild(this.play, this.pause);
+    };
+    this.el.appendChild(this.play);
+  }
+}
+
+class ButtonSave {
+  constructor (el) {
+    this.el = el;
+    // this.save = Icon(22, 'save', 'M5 27  L30 27  30 10  25 4  10 4  5 4  Z  M12 4  L12 11  23 11  23 4  M12 27  L12 17  23 17  23 27')
+    // this.save = Icon(22, 'save', 'M5 27  L30 27  30 10  25 4  10 4  5 4  Z  M11 4  L11 10  21 10  21 4', '<circle class="path" cx="17.5" cy="18.5" r="4" />')
+    this.save = Icon(23, 'save', 'M5 27  L30 27  30 10  25 4  10 4  5 4  Z  M10.5 9.5  L21 9.5', '<circle class="path" cx="17.4" cy="18.5" r="3.4" />');
+    // this.save = Icon(32, 'save', 'M7 26 L28 26', '<circle class="path" cx="17.4" cy="14.4" r="5" />')
+    // this.save = Icon(28, 'save', 'M28 22 L28 30 4 30 4 22 M16 4 L16 24 M8 16 L16 24 24 16')
+    // this.save = Icon(24, 'save', 'M17 4 Q13 6, 16 10.5 T 15 17  M7 16 L16 24 25 16 ')
+    // this.save = Icon(30, 'save', 'M9 22 C0 23 1 12 9 13 6 2 23 2 22 10 32 7 32 23 23 22 M11 18 L16 14 21 18 M16 14 L16 29')
+    // this.save = Icon(28, 'save', 'M14 9 L3 9 3 29 23 29 23 18 M18 4 L28 4 28 14 M28 4 L14 18')
+    // this.save = Icon(28, 'save', 'M28 22 L28 30 4 30 4 22 M16 4 L16 24 M8 12 L16 4 24 12')
+
+    // this.save.disabled = true
+    this.save.onclick = () => this.onsave?.();
+    this.el.appendChild(this.save);
+  }
+
+  enable () {
+    this.save.disabled = false;
+  }
+
+  disable () {
+    this.save.disabled = true;
+  }
+}
+
+class ButtonHeart {
+  constructor (el) {
+    this.el = el;
+    this.heart = Icon(19.8, 'like', 'M4 16 C1 12 2 6 7 4 12 2 15 6 16 8 17 6 21 2 26 4 31 6 31 12 28 16 25 20 16 28 16 28 16 28 7 20 4 16 Z');
+    this.heart.onclick = () => this.onclick?.();
+    this.el.appendChild(this.heart);
+  }
+}
+
+class ButtonShare {
+  constructor (el) {
+    this.el = el;
+    this.share = Icon(24, 'share', '', `
+<circle cx="18" cy="5" r="3" />
+  <circle cx="6" cy="12" r="3" />
+  <circle cx="18" cy="19" r="3" />
+  <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+  <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+      `);
+    this.share.onclick = () => this.onclick?.();
+    this.el.appendChild(this.share);
+  }
+}
+
+self.IS_DEV = !!location.port && location.port != '3000';
+
 self.bufferSize = 2**19;
 self.buffers = [1,2,3].map(() => ([new Shared32Array(self.bufferSize), new Shared32Array(self.bufferSize)]));
 self.isRendering = false;
@@ -2139,22 +2057,62 @@ class Wavepot extends Rpc {
     return this.rpc('render', data)
   }
 
+  setColor ({ color }) {
+    editor.setColor(color);
+  }
+
   async fetchSample ({ url }) {
     const sample = await fetchSample(audio, url);
     return { sample }
   }
 }
 
-const worker = new Worker('wavepot-worker-build.js', { type: 'module' });
+const worker = new Worker(IS_DEV ? 'wavepot-worker.js' : 'wavepot-worker-build.js', { type: 'module' });
 const wavepot = new Wavepot();
 const shader = new Shader(container);
 
 let editor;
 const FILE_DELIMITER = '\n/* -^-^-^-^- */\n';
-let label = 'lastV8';
+let label = 'lastV9';
 let tracks = localStorage[label];
-if (tracks) tracks = tracks.split(FILE_DELIMITER).map(track => JSON.parse(track));
-else tracks = initial.map(value => ({ id: ((Math.random()*10e6)|0).toString(36), value }));
+if (!tracks) tracks = initial;
+tracks = tracks.split(FILE_DELIMITER).map(track => JSON.parse(track));
+// else tracks = initial.map(value => ({ id: ((Math.random()*10e6)|0).toString(36), value }))
+
+/* sidebar */
+const sidebar = document.createElement('div');
+sidebar.className = 'sidebar';
+
+/* toolbar */
+const toolbar = document.createElement('div');
+toolbar.className = 'toolbar';
+const playButton = new ButtonPlayPause(toolbar);
+new ButtonSave(toolbar);
+new ButtonHeart(toolbar);
+new ButtonShare(toolbar);
+new ButtonLogo(toolbar);
+
+/* tracklist */
+self.focusTrack = id => {
+  console.log('focus id', id);
+  editor.setEditorById(id);
+};
+const trackList = document.createElement('ol');
+trackList.className = 'track-list';
+trackList.update = () => {
+  trackList.innerHTML = tracks.map(track =>
+    `<li class="track-list-item ${editor?.focusedEditor.id === track.id ? 'active' : ''}" onclick="focusTrack('${track.id}')">`
+  + track.title.replaceAll('&','&amp;').replaceAll('<','&lt;')
+  + '</li>'
+  ).join('');
+};
+trackList.update();
+
+sidebar.appendChild(toolbar);
+sidebar.appendChild(trackList);
+container.appendChild(sidebar);
+
+
 
 async function main () {
   const canvas = document.createElement('canvas');
@@ -2169,15 +2127,17 @@ async function main () {
   wavepot.data.plot.pixelRatio = window.devicePixelRatio;
   container.appendChild(canvas);
 
-  editor = window.editor = new Editor({
+  editor = window.editor = self.editor = new Editor({
+    font: '/fonts/Hermit-Regular.woff2',
     // font: '/fonts/mononoki-Regular.woff2',
     // font: '/fonts/ClassCoder.woff2',
-    font: '/fonts/labmono-regular-web.woff2',
+    // font: '/fonts/labmono-regular-web.woff2',
     id: tracks[0].id,
+    title: tracks[0].title,
     value: tracks[0].value,
-    fontSize: '10.5pt',
-    padding: 3.5,
-    titlebarHeight: 0,
+    fontSize: '11pt',
+    padding: 6.5,
+    titlebarHeight: 53,
     width: window.innerWidth,
     height: window.innerHeight,
   });
@@ -2205,6 +2165,16 @@ async function main () {
       tracks.splice(tracks.indexOf(track), 1);
     }
     save();
+  };
+  editor.onrename = (data) => {
+    const track = tracks.find(editor => editor.id === data.id);
+    if (track) {
+      track.title = data.title;
+    }
+    save();
+  };
+  editor.onfocus = (data) => {
+    trackList.update();
   };
   editor.onupdate = async () => {
 //    localStorage[label] = editor.value
@@ -2274,16 +2244,63 @@ async function main () {
   await wavepot.register(worker).setup();
 }
 
+const clock = document.createElement('div');
+clock.className = 'clock';
+const clockBar = document.createElement('div');
+const clockBeat = document.createElement('div');
+const clockSixt = document.createElement('div');
+clock.appendChild(clockBar);
+clock.appendChild(clockBeat);
+clock.appendChild(clockSixt);
+clockBar.textContent = '1';
+clockBeat.textContent = '1';
+clockSixt.textContent = '1';
+container.appendChild(clock);
+
 let audio,
+    gainNode,
     audioBuffers,
     bufferSourceNode,
     bar = {},
     isPlaying = false,
     playNext = () => {};
 
+let inputBuffer;
 let origSyncTime = 0;
 let animFrame = 0;
 let coeff = 1;
+
+const wave = document.createElement('canvas');
+const wctx = wave.getContext('2d');
+wave.className = 'wave';
+wave.width = 250;
+wave.height = 52;
+wave.style.width = '125px';
+wave.style.height = '26px';
+wctx.scale(pixelRatio, pixelRatio);
+container.appendChild(wave);
+
+const drawWave = () => {
+  let ctx = wctx;
+  let h = wave.height/2;
+  let w = wave.width/2;
+  ctx.clearRect(0,0,w,h);
+  ctx.beginPath();
+  ctx.strokeStyle = '#fff';
+  if (!inputBuffer) {
+    ctx.moveTo(0, h/2);
+    ctx.lineTo(w, h/2);
+    ctx.stroke();
+    return
+  }
+  let b = inputBuffer.getChannelData(0);
+  let co = b.length/w;
+  ctx.moveTo(0, (b[0]*0.5+.5)*h);
+  for (let i = 0; i < w; i++) {
+    ctx.lineTo(i, (b[(i*co)|0]*0.5+.5)*h);
+  }
+  ctx.stroke();
+};
 
 let toggle = async () => {
   audio = new AudioContext({
@@ -2291,6 +2308,16 @@ let toggle = async () => {
     sampleRate,
     latencyHint: 'playback' // without this audio glitches
   });
+
+  gainNode = audio.createGain();
+  // gainNode.connect(audio.destination)
+
+  const scriptGainNode = audio.createGain();
+  scriptGainNode.connect(audio.destination);
+  const scriptNode = audio.createScriptProcessor(2048, 1, 1);
+  scriptNode.onaudioprocess = e => { inputBuffer = e.inputBuffer; };
+  scriptNode.connect(scriptGainNode);
+  gainNode.connect(scriptNode);
 
   audioBuffers = [1,2,3].map(() => audio.createBuffer(
     numberOfChannels,
@@ -2369,7 +2396,7 @@ let toggle = async () => {
 
     bufferSourceNode = audio.createBufferSource();
     bufferSourceNode.buffer = nextBuffer;
-    bufferSourceNode.connect(audio.destination);
+    bufferSourceNode.connect(gainNode);
     bufferSourceNode.loop = true;
     bufferSourceNode.loopStart = 0.0;
     bufferSourceNode.loopEnd = duration;
@@ -2403,6 +2430,10 @@ let toggle = async () => {
     const tick = () => {
       animFrame = requestAnimationFrame(tick);
       shader.time = (audio.currentTime - origSyncTime) * coeff;
+      clockBar.textContent =  Math.max(1, Math.floor(shader.time % 16) + 1);
+      clockBeat.textContent = Math.max(1, Math.floor((shader.time*4) % 4) + 1);
+      clockSixt.textContent = Math.max(1, Math.floor((shader.time*16) % 16) + 1);
+      drawWave();
       shader.tick();
     };
     animFrame = requestAnimationFrame(tick);
@@ -2414,10 +2445,14 @@ let toggle = async () => {
   };
 
   const start = () => {
+    gainNode.gain.value = 1.0;
     isPlaying = true;
     playNext();
     startAnim();
+    playButton.setIconPause();
     toggle = () => {
+      playButton.setIconPlay();
+      gainNode.gain.value = 0.0;
       bufferSourceNode?.stop(0);
       stopAnim();
       offsetTime = 0;
@@ -2434,4 +2469,20 @@ let toggle = async () => {
   start();
 };
 
-main();
+playButton.onplay = () => {
+  if (isPlaying) return
+  editor.update(() => {
+    wavepot.compile().then(() => {
+      if (!isPlaying) {
+        toggle();
+      }
+      playNext();
+    });
+  });
+};
+playButton.onpause = () => {
+  if (!isPlaying) return
+  toggle();
+};
+drawWave();
+main(); //.then(toggle)

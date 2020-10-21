@@ -4,6 +4,8 @@ import Sound from './sound.js'
 import Delay from './delay.js'
 import Daverb from './daverb.js'
 
+self.IS_DEV = !!location.port && location.port != '3000'
+
 // Number prototype extensions
 Number.prototype.toFinite = function () {
   return Number.isFinite(this) ? this : 0
@@ -132,13 +134,13 @@ for (i = 0; i < bufferSize; i++) {
 
   `)}
 
-  buffer[0][i] = main.x0.toFinite()*.5 + main.Lx0.toFinite()
-  buffer[1][i] = main.x0.toFinite()*.5 + main.Rx0.toFinite()
+  buffer[0][i] = main.Lx0.toFinite()
+  buffer[1][i] = main.Rx0.toFinite()
   sounds_i =
   _biquads_i =
   _daverbs_i =
   _delays_i =
-  main.Lx0 = main.Rx0 = main.x0 = 0
+  main.Lx0 = main.Rx0 = 0
 }
 
 return { bufferIndex: i, bpm: _bpm }
@@ -161,7 +163,7 @@ RPC API Interface with Main thread
 export default class Renderer extends Rpc {
   constructor () {
     super()
-    this.plotService = new Rpc().register(new Worker('plot-worker.js', { type: 'module' }))
+    this.plotService = new Rpc().register(new Worker(IS_DEV ? 'plot-worker.js' : 'plot-worker-build.js', { type: 'module' }))
   }
 
   lastFunc () {}

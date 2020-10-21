@@ -22,6 +22,15 @@
 }
 */
 
+@font-face {
+  font-family: mono;
+  src: url('/fonts/Hermit-Regular.woff2');
+}
+
+* {
+  font-family: mono;
+}
+
 html, body {
   margin: 0;
   padding: 0;
@@ -43,9 +52,9 @@ html, body {
 }
 
 .prompt {
-  font-family: sans-serif;
   font-size: 11pt;
   position: fixed;
+  z-index: 1000;
   left: 0;
   top: 0;
   width: 100%;
@@ -94,4 +103,172 @@ html, body {
   left: 0;
   top: 0;
   z-index: 0;
+  background: #1c1c1c;
+}
+
+/* sidebar */
+
+.sidebar {
+  position: fixed;
+  z-index: 200;
+  height: auto;
+  right: 10px;
+  width: 300px;
+}
+.toolbar {
+  position: absolute;
+  /*left: 12.7px;*/
+  right: -16px;
+  top: 3.5px;
+  width: 176px;
+  /*width: 272px;*/
+  flex-flow: row nowrap;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-around;
+  margin-bottom: 2.5px;
+}
+.toolbar button.icon {
+  background: none;
+  border: none;
+  outline: none;
+  cursor: pointer;
+}
+.toolbar button.icon:disabled {
+  cursor: default;
+}
+
+.toolbar button.logo {
+  padding: 0;
+  position: fixed;
+  top: .5px;
+  left: 4.5px;
+}
+.toolbar button.logo .path {
+  stroke: #fff;
+  stroke-width: 1.9;
+  fill: transparent;
+}
+.toolbar button.logo:hover .path {
+  stroke: #fff;
+}
+.toolbar button.logo .path.wave {
+  stroke: #fff;
+}
+
+.toolbar button.play {
+  position: relative;
+  padding: 0;
+  top: -1px;
+  right: 0px;
+}
+.toolbar button.play .path {
+  stroke: #fff;
+  stroke-width: 1.55;
+  fill: transparent;
+}
+.toolbar button.play:hover .path {
+  stroke: #fff;
+  fill: #fff;
+}
+
+
+.toolbar button.like {
+  position: relative;
+  padding: 0;
+  top: -1px;
+  right: 0px;
+}
+.toolbar button.like .path {
+  stroke: #fff;
+  stroke-width: 1.85;
+  fill: transparent;
+}
+.toolbar button.like:hover .path {
+  stroke: #fff;
+  fill: #fff;
+}
+
+
+.toolbar button.share {
+  position: relative;
+  padding: 0;
+  top: -.5px;
+  margin-left: -2px;
+}
+.toolbar button.share circle,
+.toolbar button.share line {
+  stroke: #fff;
+  stroke-width: 1.45;
+  fill: transparent;
+}
+.toolbar button.share:hover circle {
+  stroke: #fff;
+  fill: #fff;
+}
+
+
+.toolbar button.save {
+  position: relative;
+  padding: 0;
+  top: -2px;
+  left: -1px;
+}
+.toolbar button.save .path {
+  stroke: #fff;
+  stroke-width: 1.5;
+  fill: transparent;
+}
+.toolbar button.save:hover circle {
+  fill: #fff;
+  stroke: #fff;
+}
+
+
+.track-list {
+  border: 1px solid #fff;
+  color: #fff;
+  margin-top: 26px;
+  padding: 15px;
+  /*padding-top: 32px;*/
+  background: rgba(0,0,0,.7);
+  font-size: 9pt;
+  list-style-position: inside;
+}
+.track-list-item {
+  cursor: pointer;
+}
+.track-list:not(:hover) .track-list-item.active,
+.track-list-item:hover {
+  background: #fff;
+  color: #000;
+}
+
+.clock {
+  position: fixed;
+  top: 3.2px;
+  font-size: 10.5pt;
+  right: 50%;
+  margin-right: -62px;
+  width: 100px;
+  color: #fff;
+  display: flex;
+  z-index: 200;
+}
+.clock div {
+  width: 25px;
+  position: relative;
+  text-align: center;
+}
+.clock div:not(:first-child):before {
+  content: '.';
+  position: absolute;
+  left: -4px;
+}
+
+.wave {
+  position: fixed;
+  top: 0;
+  right: 185px;
+  z-index: 200;
 }

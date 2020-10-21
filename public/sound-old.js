@@ -11,6 +11,7 @@ const getMethods = (obj) => {
 
 class Sound {
   constructor () {
+    this.x0 = 0
     this.Lx0 = 0
     this.Rx0 = 0
     this.t = 0
@@ -19,12 +20,18 @@ class Sound {
     this._wavetables = new Array(100).fill(0)
     this._widen_buffer = new Array(256)
     this._plot_buffer = new Shared32Array(2048)
+    this.self = this
 
     const returnThis = () => this
     this._ignoreNext =
       Object.fromEntries(
         getMethods(Sound.prototype)
           .map(m => [m, returnThis]))
+    const returnThisStereo = () => this._stereo
+    this._ignoreNextStereo =
+      Object.fromEntries(
+        getMethods(Sound.prototype)
+          .map(m => [m, returnThisStereo]))
 
     const returnIgnoreGrp = () => this._ignoreGrp
     this._ignoreGrp =
@@ -33,6 +40,23 @@ class Sound {
           .map(m => [m, returnIgnoreGrp]))
     this._ignoreGrp.end = returnThis
     this._ignoreNext.grp = () => this._ignoreGrp
+
+    const returnIgnoreGrpStereo = () => this._ignoreGrpStereo
+    this._ignoreGrpStereo =
+      Object.fromEntries(
+        getMethods(Sound.prototype)
+          .map(m => [m, returnIgnoreGrpStereo]))
+    this._ignoreGrpStereo.end = returnThisStereo
+    this._ignoreNextStereo.grp = () => this._ignoreGrpStereo
+
+    this._stereo =
+      Object.fromEntries(
+        getMethods(Sound.prototype)
+          .map(m => {
+            let fn = (this['s' + m] ?? this[m]).bind(this)
+            return [m, fn]
+          }))
+    this._stereo.self = this
   }
 
   _reset (t) {
@@ -40,6 +64,13 @@ class Sound {
     this.p = n
     this._wavetables_i = 0
     return this
+  }
+
+  stereo () {
+    this.Lx0 = this.x0 * .5 //+ this.Lx0
+    this.Rx0 = this.x0 * .5 //+ this.Rx0
+    this.x0 = 0
+    return this._stereo
   }
 
   grp () {
@@ -51,14 +82,22 @@ class Sound {
   }
 
   val (x=0) {
-    this.Lx0 = this.Rx0 = (+x).toFinite()
+    this.x0 = (+x).toFinite()
     return this
+  }
+  sval (x=0) {
+    this.Lx0 = this.Rx0 = (+x).toFinite()
+    return this._stereo
   }
 
   vol (x=1) {
+    this.x0 *= x
+    return this
+  }
+  svol (x=1) {
     this.Lx0 *= x
     this.Rx0 *= x
-    return this
+    return this._stereo
   }
 
   mod (x=1,offset=0) {
@@ -70,37 +109,65 @@ class Sound {
     }
     return this
   }
+  smod (x=1,offset=0) {
+    x = x * 4
+    this.t %= x
+    this.p = (n % (br * x))|0
+    if (this.p === 0) {
+      this._wavetables.fill(offset*_wavetable_len)
+    }
+    return this._stereo
+  }
 
   exp (x=1) {
+    this.x0 *= Math.exp(-this.t * x)
+    return this
+  }
+  sexp (x=1) {
     let exp = Math.exp(-this.t * x)
     this.Lx0 *= exp
     this.Rx0 *= exp
-    return this
+    return this._stereo
   }
 
   abs () {
+    this.x0 = Math.abs(this.x0)
+    return this
+  }
+  sabs () {
     this.Lx0 = Math.abs(this.Lx0)
     this.Rx0 = Math.abs(this.Rx0)
-    return this
+    return this._stereo
   }
 
   tanh (x=1) {
+    this.x0 = Math.tanh(this.x0 * x)
+    return this
+  }
+  stanh (x=1) {
     this.Lx0 = Math.tanh(this.Lx0 * x)
     this.Rx0 = Math.tanh(this.Rx0 * x)
-    return this
+    return this._stereo
   }
 
   atan (x=1) {
+    this.x0 = (2 / Math.PI)*Math.atan((Math.PI / 2) * this.x0 * x)
+    return this
+  }
+  satan (x=1) {
     this.Lx0 = (2 / Math.PI)*Math.atan((Math.PI / 2) * this.Lx0 * x)
     this.Rx0 = (2 / Math.PI)*Math.atan((Math.PI / 2) * this.Rx0 * x)
-    return this
+    return this._stereo
   }
 
   soft (x=1) {
-    x = 1/x
-    this.Lx0 = this.Lx0 / (x + Math.abs(this.Lx0))
-    this.Rx0 = this.Rx0 / (x + Math.abs(this.Rx0))
+    this.x0 = this.x0 / ((1/x) + Math.abs(this.x0))
     return this
+  }
+  ssoft (x=1) {
+    this.Lx0 = this.Lx0 / ((1/x) + Math.abs(this.Lx0))
+    this.Rx0 = this.Rx0 / ((1/x) + Math.abs(this.Rx0))
+    return this._stereo
   }
 
   on (x=1, measure=1/4, count=x) {
@@ -108,47 +175,80 @@ class Sound {
       ? this
       : this._ignoreNext
   }
+  son (x=1, measure=1/4, count=x) {
+    return (t/(measure*4)|0)%count === x-1
+      ? this._stereo
+      : this._ignoreNextStereo
+  }
 
   // TODO: improve this
   play (x,offset=0,speed=1,mod) {
+    let N = mod ?? x.length
+    this.x0 = x[0][(( ( (this.p+offset)*speed) % N + N) % N)|0] ?? 0
+    return this
+  }
+  splay (x,offset=0,speed=1,mod) {
     let N = mod ?? x[0].length
     let p = (( ( (this.p+offset)*speed) % N + N) % N)|0
     this.Lx0 = (x[0][p] ?? 0) * .5
     this.Rx0 = ((x[1] ?? x[0])[p] ?? 0) * .5
-    return this
+    return this._stereo
   }
 
   widen (x=.5) {
+    let half = this.x0 * .5
+    this._widen_buffer[n & 255] = half
+    this.Lx0 = half
+    this.Rx0 = this._widen_buffer[(n+((1-x)*256)) & 255]
+    return this._stereo
+  }
+  swiden (x=.5) {
     this._widen_buffer[n & 255] = this.Rx0
     this.Rx0 = this._widen_buffer[(n+((1-x)*256)) & 255]
-    return this
+    return this._stereo
   }
 
   delay (measure=1/16,feedback=.5,amt=.5) {
+    let d = _delays[_delays_i++]
+    this.x0 = d.delay((bar*measure)|0).feedback(feedback).run(this.x0, amt)
+    return this
+  }
+  sdelay (measure=1/16,feedback=.5,amt=.5) {
     let Ld = _delays[_delays_i++]
     let Rd = _delays[_delays_i++]
-    let x = (bar*measure)|0
-    this.Lx0 = Ld.delay(x).feedback(feedback).run(this.Lx0, amt)
-    this.Rx0 = Rd.delay(x).feedback(feedback).run(this.Rx0, amt)
-    return this
+    this.Lx0 = Ld.delay((bar*measure)|0).feedback(feedback).run(this.Lx0, amt)
+    this.Rx0 = Rd.delay((bar*measure)|0).feedback(feedback).run(this.Rx0, amt)
+    return this._stereo
   }
 
-  daverb (x=1,seed=-1) {
+  daverb (x=1,seed=12345) {
+    return this.stereo().daverb(x,seed)
+    // let d = _daverbs[_daverbs_i++]
+    // let LR = d.process(this.x0*.5, this.x0*.5, x)
+    // this.Lx0 = LR[0]
+    // this.Rx0 = LR[1]
+    // return this._stereo
+  }
+  sdaverb (x=1,seed=12345) {
     let d = _daverbs[_daverbs_i++]
     d.seedParameters(seed).process(this, x)
-    return this
+    return this._stereo
   }
 
-  pan (x=0) { // -1..+1  0=center
-    this.Lx0 *= Math.min(1, (2-(1 + 1*x)))
-    this.Rx0 *= Math.min(1,    (1 + 1*x))
-    return this
+  panout (x=1,LR=0) { // -1..+1  0=center
+    main.self.Lx0 += this.x0 * x * (1-(.5 + .5*LR))
+    main.self.Rx0 += this.x0 * x *    (.5 + .5*LR)
+    return this._stereo
   }
 
   out (x=1) {
-    main.Lx0 += this.Lx0 * x //* x * (2-(1 + 1*LR))
-    main.Rx0 += this.Rx0 * x //* x *    (1 + 1*LR)
+    main.self.x0 += this.x0 * x
     return this
+  }
+  sout (x=1,LR=0) {
+    main.self.Lx0 += this.Lx0 * x * (2-(1 + 1*LR))
+    main.self.Rx0 += this.Rx0 * x *    (1 + 1*LR)
+    return this._stereo
   }
 
   plot (x=1) {
@@ -161,24 +261,44 @@ class Sound {
       return this
     }
     if ((i % co)|0 === 0) {
-      this._plot_buffer[(i/co)|0] = this.Lx0
+      this._plot_buffer[(i/co)|0] = this.x0
     }
     return this
   }
+  splot (x=1) {
+    if (i === 0) {
+      this._plot_buffer.fill(0)
+    }
+    let co = bar / (2048*x)
+    if (i === bar - 1) {
+      worker.plot(this._plot_buffer, (1/x))
+      return this._stereo
+    }
+    if ((i % co)|0 === 0) {
+      this._plot_buffer[(i/co)|0] = this.Lx0
+    }
+    debugger
+    return this._stereo
+  }
 
   valueOf () {
+    return this.x0
+  }
+  svalueOf () {
     return this.Lx0
   }
 }
 
 // aliases
 Sound.prototype.mul = Sound.prototype.vol
+Sound.prototype.smul = Sound.prototype.svol
 
+Object.assign(Sound.prototype, Biquad)
 Object.keys(Biquad).forEach(m => {
-  Sound.prototype[m] = function (a0, a1, a2, a3) {
-    this.Lx0 = Biquad[m](this.Lx0, a0, a1, a2, a3)
-    this.Rx0 = Biquad[m](this.Rx0, a0, a1, a2, a3)
-    return this
+  Sound.prototype['s' + m] = function (a0, a1, a2, a3) {
+    this.Lx0 = Biquad[m].call({ x0: this.Lx0 }).x0
+    this.Rx0 = Biquad[m].call({ x0: this.Rx0 }).x0
+    return this._stereo
   }
 })
 
@@ -201,8 +321,14 @@ Object.keys(Oscs).forEach(osc => {
   Sound.prototype[osc] = new Function('x=1', `
     let index = this._wavetables[this._wavetables_i]
     this._wavetables[this._wavetables_i++] = (index + x) % 44100
-    this.Lx0 = this.Rx0 = _wavetable.${osc}[index|0]
+    this.x0 = _wavetable.${osc}[index|0]
     return this
+  `)
+  Sound.prototype['s' + osc] = new Function('x=1', `
+    let index = this._wavetables[this._wavetables_i]
+    this._wavetables[this._wavetables_i++] = (index + x) % 44100
+    this.Lx0 = this.Rx0 = _wavetable.${osc}[index|0] * .5
+    return this._stereo
   `)
 })
 

@@ -38,8 +38,8 @@ const parsePattern = x => x
     ));
 
 class Rpc {
-  #callbackId = 0
-  #callbacks = new Map
+  callbackId = 0
+  callbacks = new Map
 
   constructor () {}
 
@@ -49,10 +49,10 @@ class Rpc {
 
   rpc (method, data, tx) {
     return new Promise((resolve, reject) => {
-      const id = this.#callbackId++;
+      const id = this.callbackId++;
 
-      this.#callbacks.set(id, data => {
-        this.#callbacks.delete(id);
+      this.callbacks.set(id, data => {
+        this.callbacks.delete(id);
         if (data.error) reject(data.error);
         else resolve(data);
       });
@@ -62,7 +62,7 @@ class Rpc {
   }
 
   callback (data) {
-    this.#callbacks.get(data.responseCallback)(data.data ?? data);
+    this.callbacks.get(data.responseCallback)(data.data ?? data);
   }
 
   register (port) {
@@ -114,7 +114,7 @@ class Shared32Array {
 }
 
 var Biquad = {
-  lp1 (freq=1000) {
+  lp1 (x0,freq=1000,amt=1) {
     let [y1,y2,x1,x2] = _biquads[_biquads_i],
     w0 = pi2 * freq/sampleRate,
 
@@ -123,14 +123,13 @@ var Biquad = {
     b0 = 1.0 + a1,
     b1 = b2 = 0.0,
 
-    y0 = (this.x0*b0+x1*b1+x2*b2-y1*a1-y2*a2);
-    _biquads[_biquads_i++] = [y0,y1,this.x0,x1];
+    y0 = (x0*b0+x1*b1+x2*b2-y1*a1-y2*a2);
+    _biquads[_biquads_i++] = [y0,y1,x0,x1];
 
-    this.x0 = y0;
-    return this
+    return x0*(1-amt) + y0*amt
   },
 
-  hp1 (freq=1000) {
+  hp1 (x0,freq=1000,amt=1) {
     let [y1,y2,x1,x2] = _biquads[_biquads_i],
     w0 = pi2 * freq/sampleRate,
 
@@ -140,14 +139,13 @@ var Biquad = {
     b1 = -b0,
     b2 = 0.0,
 
-    y0 = (this.x0*b0+x1*b1+x2*b2-y1*a1-y2*a2);
-    _biquads[_biquads_i++] = [y0,y1,this.x0,x1];
+    y0 = (x0*b0+x1*b1+x2*b2-y1*a1-y2*a2);
+    _biquads[_biquads_i++] = [y0,y1,x0,x1];
 
-    this.x0 = y0;
-    return this
+    return x0*(1-amt) + y0*amt
   },
 
-  lp (freq=1000, Q=1) {
+  lp (x0, freq=1000, Q=1, amt=1) {
     let [y1,y2,x1,x2] = _biquads[_biquads_i],
     w0 = pi2 * freq/sampleRate,
     sin_w0 = Math.sin(w0),
@@ -161,14 +159,13 @@ var Biquad = {
     a1 = -2.0 * cos_w0,
     a2 =  1.0 - alpha,
 
-    y0 = (this.x0*b0+x1*b1+x2*b2-y1*a1-y2*a2)/a0;
-    _biquads[_biquads_i++] = [y0,y1,this.x0,x1];
+    y0 = (x0*b0+x1*b1+x2*b2-y1*a1-y2*a2)/a0;
+    _biquads[_biquads_i++] = [y0,y1,x0,x1];
 
-    this.x0 = y0;
-    return this
+    return x0*(1-amt) + y0*amt
   },
 
-  hp (freq=1000, Q=1) {
+  hp (x0, freq=1000, Q=1, amt=1) {
     let [y1,y2,x1,x2] = _biquads[_biquads_i],
     w0 = pi2 * freq/sampleRate,
     sin_w0 = Math.sin(w0),
@@ -182,14 +179,13 @@ var Biquad = {
     a1 = -2.0 * cos_w0,
     a2 = 1.0 - alpha,
 
-    y0 = (this.x0*b0+x1*b1+x2*b2-y1*a1-y2*a2)/a0;
-    _biquads[_biquads_i++] = [y0,y1,this.x0,x1];
+    y0 = (x0*b0+x1*b1+x2*b2-y1*a1-y2*a2)/a0;
+    _biquads[_biquads_i++] = [y0,y1,x0,x1];
 
-    this.x0 = y0;
-    return this
+    return x0*(1-amt) + y0*amt
   },
 
-  bp (freq=1000, Q=1) {
+  bp (x0, freq=1000, Q=1, amt=1) {
     let [y1,y2,x1,x2] = _biquads[_biquads_i],
     w0 = pi2 * freq/sampleRate,
     sin_w0 = Math.sin(w0),
@@ -203,14 +199,13 @@ var Biquad = {
     a1 = -2.0 * cos_w0,
     a2 = 1.0 - alpha,
 
-    y0 = (this.x0*b0+x1*b1+x2*b2-y1*a1-y2*a2)/a0;
-    _biquads[_biquads_i++] = [y0,y1,this.x0,x1];
+    y0 = (x0*b0+x1*b1+x2*b2-y1*a1-y2*a2)/a0;
+    _biquads[_biquads_i++] = [y0,y1,x0,x1];
 
-    this.x0 = y0;
-    return this
+    return x0*(1-amt) + y0*amt
   },
 
-  bpp (freq=1000, Q=1) {
+  bpp (x0, freq=1000, Q=1, amt=1) {
     let [y1,y2,x1,x2] = _biquads[_biquads_i],
     w0 = pi2 * freq/sampleRate,
     sin_w0 = Math.sin(w0),
@@ -224,14 +219,13 @@ var Biquad = {
     a1 = -2.0 * cos_w0,
     a2 = 1.0 - alpha,
 
-    y0 = (this.x0*b0+x1*b1+x2*b2-y1*a1-y2*a2)/a0;
-    _biquads[_biquads_i++] = [y0,y1,this.x0,x1];
+    y0 = (x0*b0+x1*b1+x2*b2-y1*a1-y2*a2)/a0;
+    _biquads[_biquads_i++] = [y0,y1,x0,x1];
 
-    this.x0 = y0;
-    return this
+    return x0*(1-amt) + y0*amt
   },
 
-  not (freq=1000, Q=1) {
+  not (x0, freq=1000, Q=1, amt=1) {
     let [y1,y2,x1,x2] = _biquads[_biquads_i],
     w0 = pi2 * freq/sampleRate,
     sin_w0 = Math.sin(w0),
@@ -245,14 +239,13 @@ var Biquad = {
     a1 = b1,
     a2 = 1.0 - alpha,
 
-    y0 = (this.x0*b0+x1*b1+x2*b2-y1*a1-y2*a2)/a0;
-    _biquads[_biquads_i++] = [y0,y1,this.x0,x1];
+    y0 = (x0*b0+x1*b1+x2*b2-y1*a1-y2*a2)/a0;
+    _biquads[_biquads_i++] = [y0,y1,x0,x1];
 
-    this.x0 = y0;
-    return this
+    return x0*(1-amt) + y0*amt
   },
 
-  ap (freq=1000, Q=1) {
+  ap (x0, freq=1000, Q=1, amt=1) {
     let [y1,y2,x1,x2] = _biquads[_biquads_i],
     w0 = pi2 * freq/sampleRate,
     sin_w0 = Math.sin(w0),
@@ -266,14 +259,13 @@ var Biquad = {
     a1 = b1,
     a2 = b0,
 
-    y0 = (this.x0*b0+x1*b1+x2*b2-y1*a1-y2*a2)/a0;
-    _biquads[_biquads_i++] = [y0,y1,this.x0,x1];
+    y0 = (x0*b0+x1*b1+x2*b2-y1*a1-y2*a2)/a0;
+    _biquads[_biquads_i++] = [y0,y1,x0,x1];
 
-    this.x0 = y0;
-    return this
+    return x0*(1-amt) + y0*amt
   },
 
-  pk (freq=1000, Q=1, gain=1) {
+  pk (x0, freq=1000, Q=1, gain=1, amt=1) {
     let [y1,y2,x1,x2] = _biquads[_biquads_i],
     w0 = pi2 * freq/sampleRate,
     sin_w0 = Math.sin(w0),
@@ -288,14 +280,13 @@ var Biquad = {
     a1 = b1,
     a2 = 1.0 - alpha / a,
 
-    y0 = (this.x0*b0+x1*b1+x2*b2-y1*a1-y2*a2)/a0;
-    _biquads[_biquads_i++] = [y0,y1,this.x0,x1];
+    y0 = (x0*b0+x1*b1+x2*b2-y1*a1-y2*a2)/a0;
+    _biquads[_biquads_i++] = [y0,y1,x0,x1];
 
-    this.x0 = y0;
-    return this
+    return x0*(1-amt) + y0*amt
   },
 
-  ls (freq=1000, Q=1, gain=1) {
+  ls (x0, freq=1000, Q=1, gain=1, amt=1) {
     let [y1,y2,x1,x2] = _biquads[_biquads_i],
     w0 = pi2 * freq/sampleRate,
     sin_w0 = Math.sin(w0),
@@ -311,14 +302,13 @@ var Biquad = {
     a1 = -2.0 * ((a - 1.0) + (a + 1.0) * cos_w0),
     a2 = (a + 1.0) + (a - 1.0) * cos_w0 - c,
 
-    y0 = (this.x0*b0+x1*b1+x2*b2-y1*a1-y2*a2)/a0;
-    _biquads[_biquads_i++] = [y0,y1,this.x0,x1];
+    y0 = (x0*b0+x1*b1+x2*b2-y1*a1-y2*a2)/a0;
+    _biquads[_biquads_i++] = [y0,y1,x0,x1];
 
-    this.x0 = y0;
-    return this
+    return x0*(1-amt) + y0*amt
   },
 
-  hs (freq=1000, Q=1, gain=1) {
+  hs (x0, freq=1000, Q=1, gain=1, amt=1) {
     let [y1,y2,x1,x2] = _biquads[_biquads_i],
     w0 = pi2 * freq/sampleRate,
     sin_w0 = Math.sin(w0),
@@ -334,11 +324,10 @@ var Biquad = {
     a1 = 2.0 * ((a - 1.0) - (a + 1.0) * cos_w0),
     a2 = (a + 1.0) - (a - 1.0) * cos_w0 - c,
 
-    y0 = (this.x0*b0+x1*b1+x2*b2-y1*a1-y2*a2)/a0;
-    _biquads[_biquads_i++] = [y0,y1,this.x0,x1];
+    y0 = (x0*b0+x1*b1+x2*b2-y1*a1-y2*a2)/a0;
+    _biquads[_biquads_i++] = [y0,y1,x0,x1];
 
-    this.x0 = y0;
-    return this
+    return x0*(1-amt) + y0*amt
   }
 };
 
@@ -363,14 +352,13 @@ const getMethods = (obj) => {
 
 class Sound {
   constructor () {
-    this.x0 = 0;
     this.Lx0 = 0;
     this.Rx0 = 0;
     this.t = 0;
     this._mod = Infinity;
     this._wavetables_i = 0;
     this._wavetables = new Array(100).fill(0);
-    this._widen_buffer = new Float32Array(256);
+    this._widen_buffer = new Array(256);
     this._plot_buffer = new Shared32Array(2048);
 
     const returnThis = () => this;
@@ -378,11 +366,6 @@ class Sound {
       Object.fromEntries(
         getMethods(Sound.prototype)
           .map(m => [m, returnThis]));
-    const returnThisStereo = () => this._stereo;
-    this._ignoreNextStereo =
-      Object.fromEntries(
-        getMethods(Sound.prototype)
-          .map(m => [m, returnThisStereo]));
 
     const returnIgnoreGrp = () => this._ignoreGrp;
     this._ignoreGrp =
@@ -391,22 +374,6 @@ class Sound {
           .map(m => [m, returnIgnoreGrp]));
     this._ignoreGrp.end = returnThis;
     this._ignoreNext.grp = () => this._ignoreGrp;
-
-    const returnIgnoreGrpStereo = () => this._ignoreGrpStereo;
-    this._ignoreGrpStereo =
-      Object.fromEntries(
-        getMethods(Sound.prototype)
-          .map(m => [m, returnIgnoreGrpStereo]));
-    this._ignoreGrpStereo.end = returnThisStereo;
-    this._ignoreNextStereo.grp = () => this._ignoreGrpStereo;
-
-    this._stereo =
-      Object.fromEntries(
-        getMethods(Sound.prototype)
-          .map(m => {
-            let fn = (this['s' + m] ?? this[m]).bind(this);
-            return [m, fn]
-          }));
   }
 
   _reset (t) {
@@ -414,13 +381,6 @@ class Sound {
     this.p = n;
     this._wavetables_i = 0;
     return this
-  }
-
-  stereo () {
-    this.Lx0 = this.x0 * .5 + this.Lx0;
-    this.Rx0 = this.x0 * .5 + this.Rx0;
-    this.x0 = 0;
-    return this._stereo
   }
 
   grp () {
@@ -432,22 +392,14 @@ class Sound {
   }
 
   val (x=0) {
-    this.x0 = (+x).toFinite();
-    return this
-  }
-  sval (x=0) {
     this.Lx0 = this.Rx0 = (+x).toFinite();
-    return this._stereo
+    return this
   }
 
   vol (x=1) {
-    this.x0 *= x;
-    return this
-  }
-  svol (x=1) {
     this.Lx0 *= x;
     this.Rx0 *= x;
-    return this._stereo
+    return this
   }
 
   mod (x=1,offset=0) {
@@ -461,54 +413,35 @@ class Sound {
   }
 
   exp (x=1) {
-    this.x0 *= Math.exp(-this.t * x);
-    return this
-  }
-  sexp (x=1) {
     let exp = Math.exp(-this.t * x);
     this.Lx0 *= exp;
     this.Rx0 *= exp;
-    return this._stereo
+    return this
   }
 
   abs () {
-    this.x0 = Math.abs(this.x0);
-    return this
-  }
-  sabs () {
     this.Lx0 = Math.abs(this.Lx0);
     this.Rx0 = Math.abs(this.Rx0);
-    return this._stereo
+    return this
   }
 
   tanh (x=1) {
-    this.x0 = Math.tanh(this.x0 * x);
-    return this
-  }
-  stanh (x=1) {
     this.Lx0 = Math.tanh(this.Lx0 * x);
     this.Rx0 = Math.tanh(this.Rx0 * x);
-    return this._stereo
+    return this
   }
 
   atan (x=1) {
-    this.x0 = (2 / Math.PI)*Math.atan((Math.PI / 2) * this.x0 * x);
-    return this
-  }
-  satan (x=1) {
     this.Lx0 = (2 / Math.PI)*Math.atan((Math.PI / 2) * this.Lx0 * x);
     this.Rx0 = (2 / Math.PI)*Math.atan((Math.PI / 2) * this.Rx0 * x);
-    return this._stereo
+    return this
   }
 
   soft (x=1) {
-    this.x0 = this.x0 / ((1/x) + Math.abs(this.x0));
+    x = 1/x;
+    this.Lx0 = this.Lx0 / (x + Math.abs(this.Lx0));
+    this.Rx0 = this.Rx0 / (x + Math.abs(this.Rx0));
     return this
-  }
-  ssoft (x=1) {
-    this.Lx0 = this.Lx0 / ((1/x) + Math.abs(this.Lx0));
-    this.Rx0 = this.Rx0 / ((1/x) + Math.abs(this.Rx0));
-    return this._stereo
   }
 
   on (x=1, measure=1/4, count=x) {
@@ -516,81 +449,46 @@ class Sound {
       ? this
       : this._ignoreNext
   }
-  son (x=1, measure=1/4, count=x) {
-    return (t/(measure*4)|0)%count === x-1
-      ? this._stereo
-      : this._ignoreNextStereo
-  }
 
   // TODO: improve this
   play (x,offset=0,speed=1,mod) {
-    let N = mod ?? x.length;
-    this.x0 = x[0][(( ( (this.p+offset)*speed) % N + N) % N)|0] ?? 0;
-    return this
-  }
-  splay (x,offset=0,speed=1,mod) {
     let N = mod ?? x[0].length;
     let p = (( ( (this.p+offset)*speed) % N + N) % N)|0;
     this.Lx0 = (x[0][p] ?? 0) * .5;
     this.Rx0 = ((x[1] ?? x[0])[p] ?? 0) * .5;
-    return this._stereo
+    return this
   }
 
   widen (x=.5) {
-    let half = this.x0 * .5;
-    this._widen_buffer[n & 255] = half;
-    this.Lx0 = half;
-    this.Rx0 = this._widen_buffer[(n+((1-x)*256)) & 255];
-    return this._stereo
-  }
-
-  swiden (x=.5) {
     this._widen_buffer[n & 255] = this.Rx0;
     this.Rx0 = this._widen_buffer[(n+((1-x)*256)) & 255];
-    return this._stereo
+    return this
   }
 
   delay (measure=1/16,feedback=.5,amt=.5) {
-    let d = _delays[_delays_i++];
-    this.x0 = d.delay((bar*measure)|0).feedback(feedback).run(this.x0, amt);
-    return this
-  }
-  sdelay (measure=1/16,feedback=.5,amt=.5) {
     let Ld = _delays[_delays_i++];
     let Rd = _delays[_delays_i++];
-    this.Lx0 = Ld.delay((bar*measure)|0).feedback(feedback).run(this.Lx0, amt);
-    this.Rx0 = Rd.delay((bar*measure)|0).feedback(feedback).run(this.Rx0, amt);
-    return this._stereo
+    let x = (bar*measure)|0;
+    this.Lx0 = Ld.delay(x).feedback(feedback).run(this.Lx0, amt);
+    this.Rx0 = Rd.delay(x).feedback(feedback).run(this.Rx0, amt);
+    return this
   }
 
-  daverb (x={}) {
+  daverb (x=1,seed=-1) {
     let d = _daverbs[_daverbs_i++];
-    let LR = d.process(this.x0*.5, this.x0*.5, x);
-    this.Lx0 = LR[0];
-    this.Rx0 = LR[1];
-    return this._stereo
-  }
-  sdaverb (x={}) {
-    let d = _daverbs[_daverbs_i++];
-    let LR = d.process(this.Lx0, this.Rx0, x);
-    this.Lx0 = LR[0];
-    this.Rx0 = LR[1];
-    return this._stereo
+    d.seedParameters(seed).process(this, x);
+    return this
   }
 
-  panout (x=1,LR=0) { // -1..+1  0=center
-    main.Lx0 += this.x0 * x * (1-(.5 + .5*LR));
-    main.Rx0 += this.x0 * x *    (.5 + .5*LR);
+  pan (x=0) { // -1..+1  0=center
+    this.Lx0 *= Math.min(1, (2-(1 + 1*x)));
+    this.Rx0 *= Math.min(1,    (1 + 1*x));
     return this
   }
 
   out (x=1) {
-    main.x0 += this.x0 * x;
-    return this
-  }
-  sout (x=1,LR=0) {
-    main.Lx0 += this.Lx0 * x * (2-(1 + 1*LR));
-    main.Rx0 += this.Rx0 * x *    (1 + 1*LR);
+    main.Lx0 += this.Lx0 * x; //* x * (2-(1 + 1*LR))
+    main.Rx0 += this.Rx0 * x; //* x *    (1 + 1*LR)
     return this
   }
 
@@ -604,26 +502,24 @@ class Sound {
       return this
     }
     if ((i % co)|0 === 0) {
-      this._plot_buffer[(i/co)|0] = this.x0;
+      this._plot_buffer[(i/co)|0] = this.Lx0;
     }
     return this
   }
 
   valueOf () {
-    return this.x0
+    return this.Lx0
   }
 }
 
 // aliases
 Sound.prototype.mul = Sound.prototype.vol;
-Sound.prototype.smul = Sound.prototype.svol;
 
-Object.assign(Sound.prototype, Biquad);
 Object.keys(Biquad).forEach(m => {
-  Sound.prototype['s' + m] = function (a0, a1, a2, a3) {
-    this.Lx0 = Biquad[m].call({ x0: this.Lx0 }).x0;
-    this.Rx0 = Biquad[m].call({ x0: this.Rx0 }).x0;
-    return this._stereo
+  Sound.prototype[m] = function (a0, a1, a2, a3) {
+    this.Lx0 = Biquad[m](this.Lx0, a0, a1, a2, a3);
+    this.Rx0 = Biquad[m](this.Rx0, a0, a1, a2, a3);
+    return this
   };
 });
 
@@ -646,14 +542,8 @@ Object.keys(O).forEach(osc => {
   Sound.prototype[osc] = new Function('x=1', `
     let index = this._wavetables[this._wavetables_i]
     this._wavetables[this._wavetables_i++] = (index + x) % 44100
-    this.x0 = _wavetable.${osc}[index|0]
+    this.Lx0 = this.Rx0 = _wavetable.${osc}[index|0]
     return this
-  `);
-  Sound.prototype['s' + osc] = new Function('x=1', `
-    let index = this._wavetables[this._wavetables_i]
-    this._wavetables[this._wavetables_i++] = (index + x) % 44100
-    this.Lx0 = this.Rx0 = _wavetable.${osc}[index|0] * .5
-    return this._stereo
   `);
 });
 
@@ -802,7 +692,14 @@ THE AUTHOR(S) SHALL NOT BE LIABLE FOR ANYTHING, ARISING FROM, OR IN
 CONNECTION WITH THE SOFTWARE OR THE DISTRIBUTION OF THE SOFTWARE.
 */
 
+const rand = (x) => {
+  x=Math.sin(x)*10e4;
+  return (x-Math.floor(x))
+};
+
 let sampleRate$1 = 44100;
+
+let cache = {};
 
 class DattorroReverb {
   static TapDelays = [
@@ -857,10 +754,15 @@ class DattorroReverb {
       0.011861161, 0.121870905, 0.041262054, 0.08981553 , 0.070931756, 0.011256342, 0.004065724
     ], x => Math.round(x * sampleRate$1));
 
+    this.parameterDescriptors = this.constructor.parameterDescriptors;
     this.defaultValues = Object.fromEntries(
-      this.constructor.parameterDescriptors.map(p => {
+      this.parameterDescriptors.map(p => {
         return [p.name, p.defaultValue]
       }));
+
+    this.parameters = { ...this.defaultValues };
+
+    this.seed = -1;
   }
 
   makeDelay(length) {
@@ -908,27 +810,60 @@ class DattorroReverb {
     return (((a * frac) + b) * frac + c) * frac + x1;
   }
 
+  setParameters (parameters) {
+    this.parameters = { ...this.defaultValues, ...parameters };
+    this.parameters.preDelay = ~~this.parameters.preDelay;
+    this.parameters.damping = 1 - this.parameters.damping;
+    this.parameters.excursionRate = this.parameters.excursionRate / sampleRate$1;
+    this.parameters.excursionDepth = this.parameters.excursionDepth * sampleRate$1 / 1000;
+  }
+
+  seedParameters (seed) {
+    if (seed === this.seed) return this
+    this.seed = seed;
+    if (cache[seed]) {
+      this.parameters = cache[seed];
+    } else {
+      let d = this.parameterDescriptors;
+      this.setParameters({
+        preDelay:        rand(seed)     * 4000, //d[0].maxValue,
+        bandwidth:       rand(seed + 1) * d[1].maxValue,
+        inputDiffusion1: rand(seed + 2) * d[2].maxValue,
+        inputDiffusion2: rand(seed + 3) * d[3].maxValue,
+        decay:           rand(seed + 4) * d[4].maxValue,
+        decayDiffusion1: rand(seed + 5) * d[5].maxValue,
+        decayDiffusion2: rand(seed + 6) * d[6].maxValue,
+        damping:         rand(seed + 7) * d[7].maxValue,
+        excursionRate:   rand(seed + 8) * d[8].maxValue,
+        excursionDepth:  rand(seed + 9) * d[9].maxValue,
+      });
+      console.log('set parameters', this.parameters);
+      cache[seed] = this.parameters;
+    }
+    return this
+  }
+
   // First input will be downmixed to mono if number of channels is not 2
   // Outputs Stereo.
-  process(Lx0, Rx0, parameters) {
-    parameters = { ...this.defaultValues, ...parameters };
+  process(ctx, amt = .5) {
+    let parameters = this.parameters;
 
-    const
-        pd   = ~~parameters.preDelay          ,
+    let
+        pd   = parameters.preDelay          ,
         bw   = parameters.bandwidth           ,
         fi   = parameters.inputDiffusion1     ,
         si   = parameters.inputDiffusion2     ,
         dc   = parameters.decay               ,
         ft   = parameters.decayDiffusion1     ,
         st   = parameters.decayDiffusion2     ,
-        dp   = 1 - parameters.damping         ,
-        ex   = parameters.excursionRate   / sampleRate$1        ,
-        ed   = parameters.excursionDepth  * sampleRate$1 / 1000 ,
-        we   = parameters.wet             * 0.6               , // lo & ro both mult. by 0.6 anyways
-        dr   = parameters.dry                 ;
+        dp   = parameters.damping         ,
+        ex   = parameters.excursionRate   ,// / sampleRate        ,
+        ed   = parameters.excursionDepth  ,// * sampleRate / 1000 ,
+        we   = amt * 0.6, //parameters.wet             ,// * 0.6               , // lo & ro both mult. by 0.6 anyways
+        dr   = 1 - amt; //parameters.dry                 ;
 
 
-    this._preDelay[this._pDWrite] = (Lx0 + Rx0) *.5;
+    this._preDelay[this._pDWrite] = (ctx.Lx0 + ctx.Rx0) *.5;
 
     // // write to predelay and dry output
     // if (inputs[0].length == 2) {
@@ -1018,9 +953,13 @@ class DattorroReverb {
     // Update preDelay index
     this._pDWrite = (this._pDWrite + 1) % this._pDLength;
 
-    return [Lx0*dr + lo*we, Rx0*dr + ro*we] // out;
+    ctx.Lx0 = ctx.Lx0*dr + lo*we;
+    ctx.Rx0 = ctx.Rx0*dr + ro*we;
+    // return [, ] // out;
   }
 }
+
+self.IS_DEV = !!location.port && location.port != '3000';
 
 // Number prototype extensions
 Number.prototype.toFinite = function () {
@@ -1150,13 +1089,13 @@ for (i = 0; i < bufferSize; i++) {
 
   `)}
 
-  buffer[0][i] = main.x0.toFinite()*.5 + main.Lx0.toFinite()
-  buffer[1][i] = main.x0.toFinite()*.5 + main.Rx0.toFinite()
+  buffer[0][i] = main.Lx0.toFinite()
+  buffer[1][i] = main.Rx0.toFinite()
   sounds_i =
   _biquads_i =
   _daverbs_i =
   _delays_i =
-  main.Lx0 = main.Rx0 = main.x0 = 0
+  main.Lx0 = main.Rx0 = 0
 }
 
 return { bufferIndex: i, bpm: _bpm }
@@ -1179,7 +1118,7 @@ RPC API Interface with Main thread
 class Renderer extends Rpc {
   constructor () {
     super();
-    this.plotService = new Rpc().register(new Worker('plot-worker.js', { type: 'module' }));
+    this.plotService = new Rpc().register(new Worker(IS_DEV ? 'plot-worker.js' : 'plot-worker-build.js', { type: 'module' }));
   }
 
   lastFunc () {}

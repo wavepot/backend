@@ -1,8 +1,6 @@
 import Shared32Array from './shared32array.js'
 
-// hacky way to switch api urls from dev to prod
-const API_URL = location.port.length === 4
-  ? 'http://localhost:3000' : location.origin
+const API_URL = !location.port ? location.origin : 'http://localhost:3000'
 
 const mode = 'cors'
 

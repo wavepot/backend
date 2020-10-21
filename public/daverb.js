@@ -13,7 +13,14 @@ THE AUTHOR(S) SHALL NOT BE LIABLE FOR ANYTHING, ARISING FROM, OR IN
 CONNECTION WITH THE SOFTWARE OR THE DISTRIBUTION OF THE SOFTWARE.
 */
 
+const rand = (x) => {
+  x=Math.sin(x)*10e4
+  return (x-Math.floor(x))
+}
+
 let sampleRate = 44100
+
+let cache = {}
 
 export default class DattorroReverb {
   static TapDelays = [
@@ -68,10 +75,15 @@ export default class DattorroReverb {
       0.011861161, 0.121870905, 0.041262054, 0.08981553 , 0.070931756, 0.011256342, 0.004065724
     ], x => Math.round(x * sampleRate));
 
+    this.parameterDescriptors = this.constructor.parameterDescriptors
     this.defaultValues = Object.fromEntries(
-      this.constructor.parameterDescriptors.map(p => {
+      this.parameterDescriptors.map(p => {
         return [p.name, p.defaultValue]
       }))
+
+    this.parameters = { ...this.defaultValues }
+
+    this.seed = -1
   }
 
   makeDelay(length) {
@@ -119,27 +131,60 @@ export default class DattorroReverb {
     return (((a * frac) + b) * frac + c) * frac + x1;
   }
 
+  setParameters (parameters) {
+    this.parameters = { ...this.defaultValues, ...parameters }
+    this.parameters.preDelay = ~~this.parameters.preDelay
+    this.parameters.damping = 1 - this.parameters.damping
+    this.parameters.excursionRate = this.parameters.excursionRate / sampleRate
+    this.parameters.excursionDepth = this.parameters.excursionDepth * sampleRate / 1000
+  }
+
+  seedParameters (seed) {
+    if (seed === this.seed) return this
+    this.seed = seed
+    if (cache[seed]) {
+      this.parameters = cache[seed]
+    } else {
+      let d = this.parameterDescriptors
+      this.setParameters({
+        preDelay:        rand(seed)     * 4000, //d[0].maxValue,
+        bandwidth:       rand(seed + 1) * d[1].maxValue,
+        inputDiffusion1: rand(seed + 2) * d[2].maxValue,
+        inputDiffusion2: rand(seed + 3) * d[3].maxValue,
+        decay:           rand(seed + 4) * d[4].maxValue,
+        decayDiffusion1: rand(seed + 5) * d[5].maxValue,
+        decayDiffusion2: rand(seed + 6) * d[6].maxValue,
+        damping:         rand(seed + 7) * d[7].maxValue,
+        excursionRate:   rand(seed + 8) * d[8].maxValue,
+        excursionDepth:  rand(seed + 9) * d[9].maxValue,
+      })
+      console.log('set parameters', this.parameters)
+      cache[seed] = this.parameters
+    }
+    return this
+  }
+
   // First input will be downmixed to mono if number of channels is not 2
   // Outputs Stereo.
-  process(Lx0, Rx0, parameters) {
-    parameters = { ...this.defaultValues, ...parameters }
+  process(ctx, amt = .5) {
+    let parameters = this.parameters
 
-    const
-        pd   = ~~parameters.preDelay          ,
+    let
+        pd   = parameters.preDelay          ,
         bw   = parameters.bandwidth           ,
         fi   = parameters.inputDiffusion1     ,
         si   = parameters.inputDiffusion2     ,
         dc   = parameters.decay               ,
         ft   = parameters.decayDiffusion1     ,
         st   = parameters.decayDiffusion2     ,
-        dp   = 1 - parameters.damping         ,
-        ex   = parameters.excursionRate   / sampleRate        ,
-        ed   = parameters.excursionDepth  * sampleRate / 1000 ,
-        we   = parameters.wet             * 0.6               , // lo & ro both mult. by 0.6 anyways
-        dr   = parameters.dry                 ;
+        dp   = parameters.damping         ,
+        ex   = parameters.excursionRate   ,// / sampleRate        ,
+        ed   = parameters.excursionDepth  ,// * sampleRate / 1000 ,
+        we   = amt * 0.6, //parameters.wet             ,// * 0.6               , // lo & ro both mult. by 0.6 anyways
+        dr   = 1 - amt; //parameters.dry                 ;
 
 
-    this._preDelay[this._pDWrite] = (Lx0 + Rx0) *.5
+    this._preDelay[this._pDWrite] = (ctx.Lx0 + ctx.Rx0) *.5
 
     // // write to predelay and dry output
     // if (inputs[0].length == 2) {
@@ -229,6 +274,8 @@ export default class DattorroReverb {
     // Update preDelay index
     this._pDWrite = (this._pDWrite + 1) % this._pDLength;
 
-    return [Lx0*dr + lo*we, Rx0*dr + ro*we] // out;
+    ctx.Lx0 = ctx.Lx0*dr + lo*we
+    ctx.Rx0 = ctx.Rx0*dr + ro*we
+    // return [, ] // out;
   }
 }

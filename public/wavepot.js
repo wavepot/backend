@@ -1,9 +1,16 @@
-import Editor, { registerEvents } from './editor.js'
+import Editor, { registerEvents } from './editor/editor.js'
 import Shared32Array from './shared32array.js'
 import Rpc from './rpc.js'
 import * as Server from './server-api.js'
 import initial from './initial.js'
 import Shader from './shader/shader.js'
+import ButtonLogo from './components/button-logo.js'
+import ButtonPlay from './components/button-play.js'
+import ButtonSave from './components/button-save.js'
+import ButtonLike from './components/button-like.js'
+import ButtonShare from './components/button-share.js'
+
+self.IS_DEV = !!location.port && location.port != '3000'
 
 self.bufferSize = 2**19
 self.buffers = [1,2,3].map(() => ([new Shared32Array(self.bufferSize), new Shared32Array(self.bufferSize)]))
@@ -54,22 +61,62 @@ class Wavepot extends Rpc {
     return this.rpc('render', data)
   }
 
+  setColor ({ color }) {
+    editor.setColor(color)
+  }
+
   async fetchSample ({ url }) {
     const sample = await Server.fetchSample(audio, url)
     return { sample }
   }
 }
 
-const worker = new Worker('wavepot-worker-build.js', { type: 'module' })
+const worker = new Worker(IS_DEV ? 'wavepot-worker.js' : 'wavepot-worker-build.js', { type: 'module' })
 const wavepot = new Wavepot()
 const shader = new Shader(container)
 
 let editor
 const FILE_DELIMITER = '\n/* -^-^-^-^- */\n'
-let label = 'lastV8'
+let label = 'lastV9'
 let tracks = localStorage[label]
-if (tracks) tracks = tracks.split(FILE_DELIMITER).map(track => JSON.parse(track))
-else tracks = initial.map(value => ({ id: ((Math.random()*10e6)|0).toString(36), value }))
+if (!tracks) tracks = initial
+tracks = tracks.split(FILE_DELIMITER).map(track => JSON.parse(track))
+// else tracks = initial.map(value => ({ id: ((Math.random()*10e6)|0).toString(36), value }))
+
+/* sidebar */
+const sidebar = document.createElement('div')
+sidebar.className = 'sidebar'
+
+/* toolbar */
+const toolbar = document.createElement('div')
+toolbar.className = 'toolbar'
+const playButton = new ButtonPlay(toolbar)
+new ButtonSave(toolbar)
+new ButtonLike(toolbar)
+new ButtonShare(toolbar)
+new ButtonLogo(toolbar)
+
+/* tracklist */
+self.focusTrack = id => {
+  console.log('focus id', id)
+  editor.setEditorById(id)
+}
+const trackList = document.createElement('ol')
+trackList.className = 'track-list'
+trackList.update = () => {
+  trackList.innerHTML = tracks.map(track =>
+    `<li class="track-list-item ${editor?.focusedEditor.id === track.id ? 'active' : ''}" onclick="focusTrack('${track.id}')">`
+  + track.title.replaceAll('&','&amp;').replaceAll('<','&lt;')
+  + '</li>'
+  ).join('')
+}
+trackList.update()
+
+sidebar.appendChild(toolbar)
+sidebar.appendChild(trackList)
+container.appendChild(sidebar)
+
+
 
 async function main () {
   const canvas = document.createElement('canvas')
@@ -84,15 +131,17 @@ async function main () {
   wavepot.data.plot.pixelRatio = window.devicePixelRatio
   container.appendChild(canvas)
 
-  editor = window.editor = new Editor({
+  editor = window.editor = self.editor = new Editor({
+    font: '/fonts/Hermit-Regular.woff2',
     // font: '/fonts/mononoki-Regular.woff2',
     // font: '/fonts/ClassCoder.woff2',
-    font: '/fonts/labmono-regular-web.woff2',
+    // font: '/fonts/labmono-regular-web.woff2',
     id: tracks[0].id,
+    title: tracks[0].title,
     value: tracks[0].value,
-    fontSize: '10.5pt',
-    padding: 3.5,
-    titlebarHeight: 0,
+    fontSize: '11pt',
+    padding: 6.5,
+    titlebarHeight: 53,
     width: window.innerWidth,
     height: window.innerHeight,
   })
@@ -120,6 +169,16 @@ async function main () {
       tracks.splice(tracks.indexOf(track), 1)
     }
     save()
+  }
+  editor.onrename = (data) => {
+    const track = tracks.find(editor => editor.id === data.id)
+    if (track) {
+      track.title = data.title
+    }
+    save()
+  }
+  editor.onfocus = (data) => {
+    trackList.update()
   }
   editor.onupdate = async () => {
 //    localStorage[label] = editor.value
@@ -189,16 +248,63 @@ async function main () {
   await wavepot.register(worker).setup()
 }
 
+const clock = document.createElement('div')
+clock.className = 'clock'
+const clockBar = document.createElement('div')
+const clockBeat = document.createElement('div')
+const clockSixt = document.createElement('div')
+clock.appendChild(clockBar)
+clock.appendChild(clockBeat)
+clock.appendChild(clockSixt)
+clockBar.textContent = '1'
+clockBeat.textContent = '1'
+clockSixt.textContent = '1'
+container.appendChild(clock)
+
 let audio,
+    gainNode,
     audioBuffers,
     bufferSourceNode,
     bar = {},
     isPlaying = false,
     playNext = () => {}
 
+let inputBuffer
 let origSyncTime = 0
 let animFrame = 0
 let coeff = 1
+
+const wave = document.createElement('canvas')
+const wctx = wave.getContext('2d')
+wave.className = 'wave'
+wave.width = 250
+wave.height = 52
+wave.style.width = '125px'
+wave.style.height = '26px'
+wctx.scale(pixelRatio, pixelRatio)
+container.appendChild(wave)
+
+const drawWave = () => {
+  let ctx = wctx
+  let h = wave.height/2
+  let w = wave.width/2
+  ctx.clearRect(0,0,w,h)
+  ctx.beginPath()
+  ctx.strokeStyle = '#fff'
+  if (!inputBuffer) {
+    ctx.moveTo(0, h/2)
+    ctx.lineTo(w, h/2)
+    ctx.stroke()
+    return
+  }
+  let b = inputBuffer.getChannelData(0)
+  let co = b.length/w
+  ctx.moveTo(0, (b[0]*0.5+.5)*h)
+  for (let i = 0; i < w; i++) {
+    ctx.lineTo(i, (b[(i*co)|0]*0.5+.5)*h)
+  }
+  ctx.stroke()
+}
 
 let toggle = async () => {
   audio = new AudioContext({
@@ -206,6 +312,16 @@ let toggle = async () => {
     sampleRate,
     latencyHint: 'playback' // without this audio glitches
   })
+
+  gainNode = audio.createGain()
+  // gainNode.connect(audio.destination)
+
+  const scriptGainNode = audio.createGain()
+  scriptGainNode.connect(audio.destination)
+  const scriptNode = audio.createScriptProcessor(2048, 1, 1)
+  scriptNode.onaudioprocess = e => { inputBuffer = e.inputBuffer }
+  scriptNode.connect(scriptGainNode)
+  gainNode.connect(scriptNode)
 
   audioBuffers = [1,2,3].map(() => audio.createBuffer(
     numberOfChannels,
@@ -284,7 +400,7 @@ let toggle = async () => {
 
     bufferSourceNode = audio.createBufferSource()
     bufferSourceNode.buffer = nextBuffer
-    bufferSourceNode.connect(audio.destination)
+    bufferSourceNode.connect(gainNode)
     bufferSourceNode.loop = true
     bufferSourceNode.loopStart = 0.0
     bufferSourceNode.loopEnd = duration
@@ -318,6 +434,10 @@ let toggle = async () => {
     const tick = () => {
       animFrame = requestAnimationFrame(tick)
       shader.time = (audio.currentTime - origSyncTime) * coeff
+      clockBar.textContent =  Math.max(1, Math.floor(shader.time % 16) + 1)
+      clockBeat.textContent = Math.max(1, Math.floor((shader.time*4) % 4) + 1)
+      clockSixt.textContent = Math.max(1, Math.floor((shader.time*16) % 16) + 1)
+      drawWave()
       shader.tick()
     }
     animFrame = requestAnimationFrame(tick)
@@ -329,10 +449,14 @@ let toggle = async () => {
   }
 
   const start = () => {
+    gainNode.gain.value = 1.0
     isPlaying = true
     playNext()
     startAnim()
+    playButton.setIconPause()
     toggle = () => {
+      playButton.setIconPlay()
+      gainNode.gain.value = 0.0
       bufferSourceNode?.stop(0)
       stopAnim()
       offsetTime = 0
@@ -349,4 +473,20 @@ let toggle = async () => {
   start()
 }
 
-main()
+playButton.onplay = () => {
+  if (isPlaying) return
+  editor.update(() => {
+    wavepot.compile().then(() => {
+      if (!isPlaying) {
+        toggle()
+      }
+      playNext()
+    })
+  })
+}
+playButton.onpause = () => {
+  if (!isPlaying) return
+  toggle()
+}
+drawWave()
+main() //.then(toggle)

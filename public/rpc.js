@@ -1,6 +1,6 @@
 export default class Rpc {
-  #callbackId = 0
-  #callbacks = new Map
+  callbackId = 0
+  callbacks = new Map
 
   constructor () {}
 
@@ -10,10 +10,10 @@ export default class Rpc {
 
   rpc (method, data, tx) {
     return new Promise((resolve, reject) => {
-      const id = this.#callbackId++
+      const id = this.callbackId++
 
-      this.#callbacks.set(id, data => {
-        this.#callbacks.delete(id)
+      this.callbacks.set(id, data => {
+        this.callbacks.delete(id)
         if (data.error) reject(data.error)
         else resolve(data)
       })
@@ -23,7 +23,7 @@ export default class Rpc {
   }
 
   callback (data) {
-    this.#callbacks.get(data.responseCallback)(data.data ?? data)
+    this.callbacks.get(data.responseCallback)(data.data ?? data)
   }
 
   register (port) {
