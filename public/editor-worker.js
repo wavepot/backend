@@ -2907,7 +2907,7 @@ class Editor {
 
     this.tabSize = 2;
 
-    this.titlebar = { height: data.titlebarHeight ??  this.char.px.height + 2.5 };
+    this.titlebar = { height: data.titlebarHeight ? data.titlebarHeight * pixelRatio : this.char.px.height + 2.5 };
     this.canvas.title.height = Math.max(1, this.titlebar.height);
 
     this.scrollbar = { width: 6 };
@@ -4415,8 +4415,8 @@ class Editor {
     if (this.isSubEditor) return false
 
     for (const editor of this.subEditors.values()) {
-      if (e.clientY*2 > editor.offsetTop
-      && e.clientY*2 < editor.offsetTop
+      if (e.clientY*this.canvas.pixelRatio > editor.offsetTop
+      && e.clientY*this.canvas.pixelRatio < editor.offsetTop
       + editor.canvas.gutter.height
       + editor.titlebar.height
       ) {

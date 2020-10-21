@@ -141,7 +141,7 @@ async function main () {
     value: tracks[0].value,
     fontSize: '11pt',
     padding: 6.5,
-    titlebarHeight: 53,
+    titlebarHeight: 26.5,
     width: window.innerWidth,
     height: window.innerHeight,
   })
