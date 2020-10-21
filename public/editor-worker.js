@@ -2818,10 +2818,12 @@ class Editor {
     this.fontSize = data.fontSize ?? this.fontSize;
     this.autoResize = data.autoResize ?? this.autoResize;
 
-    const { groups: { color } } = /(?:color\(')(?<color>[^']+)/gi.exec(this.value);
-    if (color) {
-      this.color = color;
-    }
+    try {
+      const { groups: { color } } = /(?:color\(')(?<color>[^']+)/gi.exec(this.value);
+      if (color) {
+        this.color = color;
+      }
+    } catch (err) {}
 
     this.controlEditor = controlEditor ?? this.controlEditor;
     this.isSubEditor = !!this.controlEditor && this.controlEditor !== this;
