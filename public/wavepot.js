@@ -286,8 +286,8 @@ container.appendChild(wave)
 
 const drawWave = () => {
   let ctx = wctx
-  let h = wave.height/2
-  let w = wave.width/2
+  let h = wave.height/pixelRatio
+  let w = wave.width/pixelRatio
   ctx.clearRect(0,0,w,h)
   ctx.beginPath()
   ctx.strokeStyle = '#fff'
