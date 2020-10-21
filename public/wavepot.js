@@ -77,7 +77,7 @@ const shader = new Shader(container)
 
 let editor
 const FILE_DELIMITER = '\n/* -^-^-^-^- */\n'
-let label = 'lastV9'
+let label = 'lastV10'
 let tracks = localStorage[label]
 if (!tracks) tracks = initial
 tracks = tracks.split(FILE_DELIMITER).map(track => JSON.parse(track))
@@ -314,7 +314,7 @@ let toggle = async () => {
   })
 
   gainNode = audio.createGain()
-  // gainNode.connect(audio.destination)
+  gainNode.connect(audio.destination)
 
   const scriptGainNode = audio.createGain()
   scriptGainNode.connect(audio.destination)
