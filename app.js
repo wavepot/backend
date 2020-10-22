@@ -148,9 +148,7 @@ app.get('/:project/:id', async (req, res, next) => {
 app.use(express.static(PROJECTS_PATH, {
   setHeaders (res, path, stat) {
     res.set('Content-Type', 'application/json')
-  },
-  immutable: true,
-  maxAge: 1000 * 60 * 60 * 24 * 30 * 6
+  }
 }))
 
 app.use(express.text({ type: 'application/json', limit: '5mb' }))
