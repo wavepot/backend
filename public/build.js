@@ -120,6 +120,7 @@ class Editor {
     delete editors[this.id];
     this.worker.terminate();
     this.canvas.parentNode.removeChild(this.canvas);
+    this.ondestroy?.();
   }
 
   _onblockcomment () {
@@ -763,6 +764,38 @@ class Rpc {
 }
 
 const API_URL = !location.port ? location.origin : 'http://localhost:3000';
+
+const mode = 'cors';
+
+const headers = {
+  'Accept': 'application/json',
+  'Content-Type': 'application/json'
+};
+
+const load = async (title) => {
+  const url = title[0] === '.' ? title : API_URL + '/' + title;
+
+  const res = await fetch(url, { mode, headers });
+
+  const json = await res.json();
+
+  return json
+};
+
+const save = async (projectJson) => {
+  const url = API_URL + '/p'; // + projectJson.title
+
+  const res = await fetch(url, {
+    method: 'POST',
+    mode,
+    headers,
+    body: JSON.stringify(projectJson, null, 2)
+  });
+
+  const json = await res.json();
+
+  return json
+};
 
 let samples = new Map;
 
@@ -2071,7 +2104,8 @@ class Wavepot extends Rpc {
   }
 }
 
-const worker = new Worker(IS_DEV ? 'wavepot-worker.js' : 'wavepot-worker-build.js', { type: 'module' });
+const workerUrl = new URL(IS_DEV ? 'wavepot-worker.js' : 'wavepot-worker-build.js', import.meta.url).href;
+const worker = new Worker(workerUrl, { type: 'module' });
 const wavepot = new Wavepot();
 const shader = new Shader(container);
 
@@ -2079,11 +2113,6 @@ let editor;
 const FILE_DELIMITER = '\n/* -^-^-^-^- */\n';
 let label = 'lastV10';
 let tracks = localStorage[label];
-if (!tracks) tracks = initial;
-tracks = tracks.split(FILE_DELIMITER).map(track => JSON.parse(track));
-// else tracks = initial.map(value => ({ id: ((Math.random()*10e6)|0).toString(36), value }))
-
-
 
 /* sidebar */
 const sidebar = document.createElement('div');
@@ -2093,14 +2122,13 @@ sidebar.className = 'sidebar';
 const toolbar = document.createElement('div');
 toolbar.className = 'toolbar';
 const playButton = new ButtonPlayPause(toolbar);
-new ButtonSave(toolbar);
+const saveButton = new ButtonSave(toolbar);
 new ButtonHeart(toolbar);
 new ButtonShare(toolbar);
 const logoButton = new ButtonLogo(toolbar);
 
 /* tracklist */
 self.focusTrack = id => {
-  console.log('focus id', id);
   editor.setEditorById(id);
 };
 const trackList = document.createElement('ol');
@@ -2112,7 +2140,6 @@ trackList.update = () => {
   + '</li>'
   ).join('');
 };
-trackList.update();
 
 sidebar.appendChild(toolbar);
 sidebar.appendChild(trackList);
@@ -2124,11 +2151,13 @@ const menu = document.createElement('div');
 menu.className = 'menu';
 menu.innerHTML = `<div class="menu-inner">
 <div class="menu-select">
-<div class="menu-select-item"><a href="#">browse</a></div>
+<button id="startnew">start new project</button>
+<button id="openinitial">load initial demo</button>
+<!-- <div class="menu-select-item"><a href="#">browse</a></div>
 <div class="menu-select-item"><a href="#">saves</a></div>
 <div class="menu-select-item"><a href="#">favorites</a></div>
 <div class="menu-select-item"><a href="#">tools</a></div>
-<div class="menu-select-item"><a href="#">info</a></div>
+<div class="menu-select-item"><a href="#">info</a></div> -->
 </div>
 </div>`;
 menu.style.display = 'none';
@@ -2139,12 +2168,15 @@ menu.querySelector('.menu-inner').addEventListener('mousedown', e => {
 menu.querySelector('.menu-inner').addEventListener('click', e => {
   e.stopPropagation();
   e.preventDefault();
-}, { capture: true });
+});
+const menuHide = () => {
+  menu.style.display = 'none';
+  trackList.style.display = 'block';
+};
 menu.addEventListener('mousedown', e => {
   e.stopPropagation();
   e.preventDefault();
-  menu.style.display = 'none';
-  trackList.style.display = 'block';
+  menuHide();
 });
 container.appendChild(menu);
 logoButton.onclick = () => {
@@ -2154,6 +2186,32 @@ logoButton.onclick = () => {
 
 
 async function main () {
+  const loadFromUrl = async () => {
+    if (location.pathname.split('/').length === 3) {
+      tracks = await load(location.pathname.slice(1));
+      document.title = location.pathname.split('/').pop() + ' – wavepot';
+    }
+    if (editor) {
+      editor.destroy();
+      createEditor(tracks[0]);
+      tracks.slice(1).forEach(data => editor.addSubEditor(data));
+    }
+  };
+
+  window.addEventListener('popstate', async () => {
+    await loadFromUrl();
+  });
+
+  if (location.pathname.split('/').length === 3) {
+    await loadFromUrl();
+  } else {
+    if (!tracks) tracks = initial;
+    tracks = tracks.split(FILE_DELIMITER).map(track => JSON.parse(track));
+    // else tracks = initial.map(value => ({ id: ((Math.random()*10e6)|0).toString(36), value }))
+  }
+
+  trackList.update();
+
   const canvas = document.createElement('canvas');
   canvas.className = 'back-canvas';
   canvas.width = window.innerWidth*window.devicePixelRatio;
@@ -2166,106 +2224,150 @@ async function main () {
   wavepot.data.plot.pixelRatio = window.devicePixelRatio;
   container.appendChild(canvas);
 
-  editor = window.editor = self.editor = new Editor({
-    font: '/fonts/Hermit-Regular.woff2',
-    // font: '/fonts/mononoki-Regular.woff2',
-    // font: '/fonts/ClassCoder.woff2',
-    // font: '/fonts/labmono-regular-web.woff2',
-    id: tracks[0].id,
-    title: tracks[0].title,
-    value: tracks[0].value,
-    fontSize: '11pt',
-    padding: 6.5,
-    titlebarHeight: 25.5,
-    width: window.innerWidth,
-    height: window.innerHeight,
-  });
+  const createEditor = track => {
+    editor = window.editor = self.editor = new Editor({
+      font: '/fonts/Hermit-Regular.woff2',
+      // font: '/fonts/mononoki-Regular.woff2',
+      // font: '/fonts/ClassCoder.woff2',
+      // font: '/fonts/labmono-regular-web.woff2',
+      id: track.id,
+      title: track.title,
+      value: track.value,
+      fontSize: '11pt',
+      padding: 6.5,
+      titlebarHeight: 25.5,
+      width: window.innerWidth,
+      height: window.innerHeight,
+    });
+    editor.ontoadd = () => {
+      const id = (Math.random() * 10e6 | 0).toString(36);
+      const title = 'untitled - (ctrl+m to rename)';
+      const value = 'bpm(120)\n\nmod(1/4).saw(50).exp(10).out().plot()\n';
+      editor.addSubEditor({ id, title, value });
+    };
+    editor.onblockcomment = () => {
+      play();
+    };
+    editor.onchange = (data) => {
+      const track = tracks.find(editor => editor.id === data.id);
+      if (track) track.value = data.value;
+      save$1();
+    };
+    editor.onremove = (data) => {
+      const track = tracks.find(editor => editor.id === data.id);
+      if (track) {
+        tracks.splice(tracks.indexOf(track), 1);
+      }
+      save$1();
+    };
+    editor.onrename = (data) => {
+      const track = tracks.find(editor => editor.id === data.id);
+      if (track) {
+        track.title = data.title;
+      }
+      save$1();
+    };
+    editor.onfocus = (data) => {
+      trackList.update();
+    };
+    editor.onupdate = async () => {
+  //    localStorage[label] = editor.value
+    };
+    editor.onsetup = () => {
+      events.setTarget('focus', editor, { target: events.textarea, type: 'mouseenter' });
+
+      // leave time to setup
+      setTimeout(() => {
+        editor.onadd = (data) => {
+          tracks.push(data);
+          save$1();
+        };
+      }, 1000);
+
+      let keydown = e => {
+        if (e.key === ' ' && (e.ctrlKey || e.metaKey)) {
+          e.stopPropagation();
+          e.preventDefault();
+          toggle();
+          return false
+        }
+        if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+          e.stopPropagation();
+          e.preventDefault();
+          toggle();
+          return false
+        }
+
+        if (e.key === '.' && (e.ctrlKey || e.metaKey)) {
+          e.stopPropagation();
+          e.preventDefault();
+          play();
+          // editor.update(() => {
+          //   wavepot.compile().then(() => {
+          //     if (!isPlaying) {
+          //       toggle()
+          //     }
+          //     playNext()
+          //   })
+          // })
+          return false
+        }
+      };
+
+      document.body.addEventListener('keydown', keydown, { capture: true });
+      editor.ondestroy = () => {
+        document.body.removeEventListener('keydown', keydown, { capture: true });
+      };
+    };
+    container.appendChild(editor.canvas);
+    editor.parent = document.body;
+    editor.rect = editor.canvas.getBoundingClientRect();
+  };
+
+  createEditor(tracks[0]);
+
+  menu.querySelector('#startnew').addEventListener('click', e => {
+    menuHide();
+    editor.destroy();
+    tracks = [{
+      id: (Math.random()*10e6|0).toString(36),
+      title: 'untitled - (ctrl+m to rename)',
+      value: 'bpm(120)\n\nmod(1/4).saw(50).exp(10).out().plot()\n'
+    }];
+    createEditor(tracks[0]);
+    save$1();
+  }, { capture: true });
+  menu.querySelector('#openinitial').addEventListener('click', e => {
+    menuHide();
+    editor.destroy();
+    tracks = initial;
+    tracks = tracks.split(FILE_DELIMITER).map(track => JSON.parse(track));
+    createEditor(tracks[0]);
+    tracks.slice(1).forEach(data => editor.addSubEditor(data));
+    save$1();
+  }, { capture: true });
 
   tracks.slice(1).forEach(data => editor.addSubEditor(data));
 
-  let save = () => {
+  let save$1 = () => {
     localStorage[label] = tracks.map(track => JSON.stringify(track)).join(FILE_DELIMITER);
+    history.pushState({}, '', '/'); // edited, so no url to point to, this enables refresh to use localstorage
+    document.title = 'wavepot';
+  };
+  let saveServer = async () => {
+    const responseJson = await save(tracks);
+    history.pushState({}, '',
+      '/p/' + responseJson.generatedId);
+    document.title = responseJson.generatedId + ' – wavepot';
   };
 
-  editor.ontoadd = () => {
-    const id = (Math.random() * 10e6 | 0).toString(36);
-    const value = 'bpm(120)\n\nmod(1/4).saw(50).exp(10).out().plot()\n';
-    editor.addSubEditor({ id, value });
+  saveButton.onsave = () => {
+    saveServer();
   };
-  editor.onblockcomment = () => {
-    play();
-  };
-  editor.onchange = (data) => {
-    const track = tracks.find(editor => editor.id === data.id);
-    if (track) track.value = data.value;
-    save();
-  };
-  editor.onremove = (data) => {
-    const track = tracks.find(editor => editor.id === data.id);
-    if (track) {
-      tracks.splice(tracks.indexOf(track), 1);
-    }
-    save();
-  };
-  editor.onrename = (data) => {
-    const track = tracks.find(editor => editor.id === data.id);
-    if (track) {
-      track.title = data.title;
-    }
-    save();
-  };
-  editor.onfocus = (data) => {
-    trackList.update();
-  };
-  editor.onupdate = async () => {
-//    localStorage[label] = editor.value
-  };
-  container.appendChild(editor.canvas);
-  editor.parent = document.body;
-  editor.rect = editor.canvas.getBoundingClientRect();
+
+
   // TODO: cleanup this shit
   const events = registerEvents(document.body);
-  editor.onsetup = () => {
-    events.setTarget('focus', editor, { target: events.textarea, type: 'mouseenter' });
-
-    // leave time to setup
-    setTimeout(() => {
-      editor.onadd = (data) => {
-        tracks.push(data);
-        save();
-      };
-    }, 1000);
-
-    document.body.addEventListener('keydown', e => {
-      if (e.key === ' ' && (e.ctrlKey || e.metaKey)) {
-        e.stopPropagation();
-        e.preventDefault();
-        toggle();
-        return false
-      }
-      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-        e.stopPropagation();
-        e.preventDefault();
-        toggle();
-        return false
-      }
-
-      if (e.key === '.' && (e.ctrlKey || e.metaKey)) {
-        e.stopPropagation();
-        e.preventDefault();
-        play();
-        // editor.update(() => {
-        //   wavepot.compile().then(() => {
-        //     if (!isPlaying) {
-        //       toggle()
-        //     }
-        //     playNext()
-        //   })
-        // })
-        return false
-      }
-    }, { capture: true });
-  };
 
   window.onresize = () => {
     editor.resize({

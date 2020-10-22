@@ -32,7 +32,7 @@ export const load = async (title) => {
 }
 
 export const save = async (projectJson) => {
-  const url = API_URL + '/' + projectJson.title
+  const url = API_URL + '/p' // + projectJson.title
 
   const res = await fetch(url, {
     method: 'POST',

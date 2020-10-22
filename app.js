@@ -174,7 +174,7 @@ app.post('/:project', async (req, res) => {
   const generatedId = randomId(4)
 
   const targetFilePath = path.join(targetProjectPath, generatedId)
-  if (!targetProjectPath.startsWith(targetProjectPath)) {
+  if (!targetFilePath.startsWith(targetProjectPath)) {
     res.status(403)
     res.end()
     return
@@ -197,6 +197,8 @@ app.post('/:project', async (req, res) => {
   })
 
   if (env === 'test') return // TODO: figure how to test below
+
+  return // TODO: bypass meta for now
 
   console.time('meta')
   const title = [project, generatedId].join('/')

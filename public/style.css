@@ -236,6 +236,7 @@ html, body {
   align-items: center;
 }
 .menu-inner {
+  display: grid;
   border: 1px solid #fff;
   font-size: 9pt;
   margin: 0 auto;
@@ -243,35 +244,25 @@ html, body {
   min-width: 800px;
   max-width: 800px;
   min-height: 91%;
+  max-height: 91%;
+  align-items: center;
+  justify-content: center;
 }
 .menu-select {
-  display: flex;
-  align-items: stretch;
-  justify-content: stretch;
-  width: 100%;
+  display: grid;
 }
-.menu-select-item {
-  flex: 1;
-  border: 1px solid #fff;
-  border-top: none;
-  border-left: none;
-  border-collapse: collapse;
-}
-.menu-select-item:last-child {
-  border-right: none;
-}
-.menu-select-item a {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 40px;
-  flex: 1;
-  text-decoration: none;
+.menu-select button {
+  margin: 7px 0;
+  width: 200px;
+  height: 45px;
+  background: none;
   color: #fff;
+  border: 1px solid #fff;
+  cursor: pointer;
 }
-.menu-select-item a:hover {
+.menu-select button:hover {
   background: #fff;
-  color: #000;
+  color: #000
 }
 
 
