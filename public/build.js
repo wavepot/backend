@@ -2043,6 +2043,17 @@ class ButtonShare {
   }
 }
 
+class ButtonEye {
+  constructor (el) {
+    this.el = el;
+    this.eye = Icon(24, 'eye', 'M2 16 C2 16 7 6 16 6 25 6 30 16 30 16 30 16 25 26 16 26 7 26 2 16 2 16 Z', `
+    <circle cx="16" cy="16" r="4" />
+    `);
+    this.eye.onclick = () => this.onclick?.();
+    this.el.appendChild(this.eye);
+  }
+}
+
 self.IS_DEV = !!location.port && location.port != '3000';
 
 self.bufferSize = 2**19;
@@ -2126,6 +2137,18 @@ const saveButton = new ButtonSave(toolbar);
 new ButtonHeart(toolbar);
 new ButtonShare(toolbar);
 const logoButton = new ButtonLogo(toolbar);
+const eyeButton = new ButtonEye(toolbar);
+eyeButton.eye.addEventListener('click', () => {
+  if (eyeButton.eye.classList.contains('active')) {
+    eyeButton.eye.classList.remove('active');
+    document.querySelector('.back-canvas').style.display = 'block';
+    document.querySelector('.shader-canvas').style.display = 'block';
+  } else {
+    eyeButton.eye.classList.add('active');
+    document.querySelector('.back-canvas').style.display = 'none';
+    document.querySelector('.shader-canvas').style.display = 'none';
+  }
+});
 
 /* tracklist */
 self.focusTrack = id => {

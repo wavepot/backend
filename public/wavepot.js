@@ -9,6 +9,7 @@ import ButtonPlay from './components/button-play.js'
 import ButtonSave from './components/button-save.js'
 import ButtonLike from './components/button-like.js'
 import ButtonShare from './components/button-share.js'
+import ButtonEye from './components/button-eye.js'
 
 self.IS_DEV = !!location.port && location.port != '3000'
 
@@ -93,6 +94,18 @@ const saveButton = new ButtonSave(toolbar)
 new ButtonLike(toolbar)
 new ButtonShare(toolbar)
 const logoButton = new ButtonLogo(toolbar)
+const eyeButton = new ButtonEye(toolbar)
+eyeButton.eye.addEventListener('click', () => {
+  if (eyeButton.eye.classList.contains('active')) {
+    eyeButton.eye.classList.remove('active')
+    document.querySelector('.back-canvas').style.display = 'block'
+    document.querySelector('.shader-canvas').style.display = 'block'
+  } else {
+    eyeButton.eye.classList.add('active')
+    document.querySelector('.back-canvas').style.display = 'none'
+    document.querySelector('.shader-canvas').style.display = 'none'
+  }
+})
 
 /* tracklist */
 self.focusTrack = id => {

@@ -36,7 +36,7 @@ html, body {
   padding: 0;
   width: 100%;
   height: 100%;
-  background: #1a1a1a;
+  background: #1c1c1c;
   overflow: hidden;
 }
 
@@ -223,6 +223,33 @@ html, body {
   fill: #fff;
   stroke: #fff;
 }
+
+.toolbar button.eye {
+  position: fixed;
+  padding: 0;
+  bottom: 5px;
+  right: 8px;
+}
+.toolbar button.eye .path {
+  stroke: #fff;
+  stroke-width: 1.5;
+  fill: transparent;
+}
+.toolbar button.eye circle {
+  stroke: #fff;
+  stroke-width: 1.5;
+}
+.toolbar button.eye.active circle {
+  visibility: hidden;
+}
+.toolbar button.eye:hover circle {
+  visibility: visible;
+  fill: '#fff';
+}
+.toolbar button.eye.active:hover circle {
+  visibility: hidden;
+}
+
 
 .menu {
   position: fixed;
