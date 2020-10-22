@@ -83,6 +83,8 @@ if (!tracks) tracks = initial
 tracks = tracks.split(FILE_DELIMITER).map(track => JSON.parse(track))
 // else tracks = initial.map(value => ({ id: ((Math.random()*10e6)|0).toString(36), value }))
 
+
+
 /* sidebar */
 const sidebar = document.createElement('div')
 sidebar.className = 'sidebar'
@@ -94,7 +96,7 @@ const playButton = new ButtonPlay(toolbar)
 new ButtonSave(toolbar)
 new ButtonLike(toolbar)
 new ButtonShare(toolbar)
-new ButtonLogo(toolbar)
+const logoButton = new ButtonLogo(toolbar)
 
 /* tracklist */
 self.focusTrack = id => {
@@ -116,6 +118,39 @@ sidebar.appendChild(toolbar)
 sidebar.appendChild(trackList)
 container.appendChild(sidebar)
 
+
+/* menu panel */
+const menu = document.createElement('div')
+menu.className = 'menu'
+menu.innerHTML = `<div class="menu-inner">
+<div class="menu-select">
+<div class="menu-select-item"><a href="#">browse</a></div>
+<div class="menu-select-item"><a href="#">saves</a></div>
+<div class="menu-select-item"><a href="#">favorites</a></div>
+<div class="menu-select-item"><a href="#">tools</a></div>
+<div class="menu-select-item"><a href="#">info</a></div>
+</div>
+</div>`
+menu.style.display = 'none'
+menu.querySelector('.menu-inner').addEventListener('mousedown', e => {
+  e.stopPropagation()
+  e.preventDefault()
+}, { capture: true })
+menu.querySelector('.menu-inner').addEventListener('click', e => {
+  e.stopPropagation()
+  e.preventDefault()
+}, { capture: true })
+menu.addEventListener('mousedown', e => {
+  e.stopPropagation()
+  e.preventDefault()
+  menu.style.display = 'none'
+  trackList.style.display = 'block'
+})
+container.appendChild(menu)
+logoButton.onclick = () => {
+  menu.style.display = 'grid'
+  trackList.style.display = 'none'
+}
 
 
 async function main () {
@@ -141,7 +176,7 @@ async function main () {
     value: tracks[0].value,
     fontSize: '11pt',
     padding: 6.5,
-    titlebarHeight: 25,
+    titlebarHeight: 25.5,
     width: window.innerWidth,
     height: window.innerHeight,
   })
@@ -157,7 +192,9 @@ async function main () {
     const value = 'bpm(120)\n\nmod(1/4).saw(50).exp(10).out().plot()\n'
     editor.addSubEditor({ id, value })
   }
-
+  editor.onblockcomment = () => {
+    play()
+  }
   editor.onchange = (data) => {
     const track = tracks.find(editor => editor.id === data.id)
     if (track) track.value = data.value
@@ -216,14 +253,15 @@ async function main () {
       if (e.key === '.' && (e.ctrlKey || e.metaKey)) {
         e.stopPropagation()
         e.preventDefault()
-        editor.update(() => {
-          wavepot.compile().then(() => {
-            if (!isPlaying) {
-              toggle()
-            }
-            playNext()
-          })
-        })
+        play()
+        // editor.update(() => {
+        //   wavepot.compile().then(() => {
+        //     if (!isPlaying) {
+        //       toggle()
+        //     }
+        //     playNext()
+        //   })
+        // })
         return false
       }
     }, { capture: true })
@@ -290,6 +328,7 @@ const drawWave = () => {
   let w = wave.width/pixelRatio
   ctx.clearRect(0,0,w,h)
   ctx.beginPath()
+  ctx.lineWidth = Math.max(1, 1.6/pixelRatio)
   ctx.strokeStyle = '#fff'
   if (!inputBuffer) {
     ctx.moveTo(0, h/2)
@@ -473,8 +512,7 @@ let toggle = async () => {
   start()
 }
 
-playButton.onplay = () => {
-  if (isPlaying) return
+const play = () => {
   editor.update(() => {
     wavepot.compile().then(() => {
       if (!isPlaying) {
@@ -483,6 +521,10 @@ playButton.onplay = () => {
       playNext()
     })
   })
+}
+playButton.onplay = () => {
+  if (isPlaying) return
+  play()
 }
 playButton.onpause = () => {
   if (!isPlaying) return

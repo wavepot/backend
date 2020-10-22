@@ -4606,6 +4606,28 @@ class Editor {
         this.draw();
       }
       break
+      case 'Cmd Alt /':
+      case 'Cmd ?': {
+        if (!this.markActive || e.key === '?') {
+          let y = this.caret.pos.y;
+          while (y > 0 && this.buffer.getLineLength(y) > 0) y--;
+          let startY = y;
+          y = this.caret.pos.y;
+          while (y <= this.sizes.loc && this.buffer.getLineLength(y) > 0) y++;
+          let endY = y;
+          this.mark.set({
+            begin: { x:0, y:startY },
+            end: { x:0, y:endY }
+          });
+          this.markActive = true;
+          this.updateMark();
+          this.draw();
+          if (!e.altKey) {
+            break
+          }
+        }
+      }
+      // break
       case 'Cmd /': {
         let add;
         let area;
@@ -4663,6 +4685,9 @@ class Editor {
         this.setCaret(caret);
         this.updateMark();
         this.draw();
+        if (e.altKey) {
+          this.postMessage({ call: 'onblockcomment' });
+        }
       }
       return
       case 'Cmd D': {
