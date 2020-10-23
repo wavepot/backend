@@ -2176,6 +2176,8 @@ menu.innerHTML = `<div class="menu-inner">
 <div class="menu-select">
 <button id="startnew">start new project</button>
 <button id="openinitial">load initial demo</button>
+<button id="importjson">import from json</button>
+<button id="exportjson">export to json</button>
 <!-- <div class="menu-select-item"><a href="#">browse</a></div>
 <div class="menu-select-item"><a href="#">saves</a></div>
 <div class="menu-select-item"><a href="#">favorites</a></div>
@@ -2369,6 +2371,35 @@ async function main () {
     tracks.slice(1).forEach(data => editor.addSubEditor(data));
     save$1();
   }, { capture: true });
+  menu.querySelector('#importjson').addEventListener('click', e => {
+    menuHide();
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    input.onchange = e => {
+      const file = e.target.files[0];
+      const reader = new FileReader();
+      reader.readAsText(file, 'utf-8');
+      reader.onload = async e => {
+        editor.destroy();
+        tracks = JSON.parse(e.target.result);
+        createEditor(tracks[0]);
+        tracks.slice(1).forEach(data => editor.addSubEditor(data));
+        save$1();
+      };
+    };
+    input.click();
+  }, { capture: true });
+  menu.querySelector('#exportjson').addEventListener('click', e => {
+    menuHide();
+    const name = new Date().toISOString().replace(/[^0-9]/g, ' ').trim().split(' ').slice(0, -1).join('-') + '.json';
+    const file = new File([JSON.stringify(tracks)], name, { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(file);
+    a.download = name;
+    a.click();
+  }, { capture: true });
+
 
   tracks.slice(1).forEach(data => editor.addSubEditor(data));
 
