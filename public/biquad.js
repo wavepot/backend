@@ -1,6 +1,8 @@
 export default {
   lp1 (x0,freq=1000,amt=1) {
-    let [y1,y2,x1,x2] = _biquads[_biquads_i],
+    var b = _biquads[_biquads_i++],
+        {y1,y2,x1,x2} = b,
+
     w0 = pi2 * freq/sampleRate,
 
     a1 = -Math.exp(-w0),
@@ -9,13 +11,15 @@ export default {
     b1 = b2 = 0.0,
 
     y0 = (x0*b0+x1*b1+x2*b2-y1*a1-y2*a2)
-    _biquads[_biquads_i++] = [y0,y1,x0,x1]
+    b.y1=y0; b.y2=y1; b.x1=x0; b.x2=x1;
 
     return x0*(1-amt) + y0*amt
   },
 
   hp1 (x0,freq=1000,amt=1) {
-    let [y1,y2,x1,x2] = _biquads[_biquads_i],
+    var b = _biquads[_biquads_i++],
+        {y1,y2,x1,x2} = b,
+
     w0 = pi2 * freq/sampleRate,
 
     a1 = -Math.exp(-w0),
@@ -25,13 +29,15 @@ export default {
     b2 = 0.0,
 
     y0 = (x0*b0+x1*b1+x2*b2-y1*a1-y2*a2)
-    _biquads[_biquads_i++] = [y0,y1,x0,x1]
+    b.y1=y0; b.y2=y1; b.x1=x0; b.x2=x1;
 
     return x0*(1-amt) + y0*amt
   },
 
   lp (x0, freq=1000, Q=1, amt=1) {
-    let [y1,y2,x1,x2] = _biquads[_biquads_i],
+    var b = _biquads[_biquads_i++],
+        {y1,y2,x1,x2} = b,
+
     w0 = pi2 * freq/sampleRate,
     sin_w0 = Math.sin(w0),
     cos_w0 = Math.cos(w0),
@@ -45,13 +51,15 @@ export default {
     a2 =  1.0 - alpha,
 
     y0 = (x0*b0+x1*b1+x2*b2-y1*a1-y2*a2)/a0
-    _biquads[_biquads_i++] = [y0,y1,x0,x1]
+    b.y1=y0; b.y2=y1; b.x1=x0; b.x2=x1;
 
     return x0*(1-amt) + y0*amt
   },
 
   hp (x0, freq=1000, Q=1, amt=1) {
-    let [y1,y2,x1,x2] = _biquads[_biquads_i],
+    var b = _biquads[_biquads_i++],
+        {y1,y2,x1,x2} = b,
+
     w0 = pi2 * freq/sampleRate,
     sin_w0 = Math.sin(w0),
     cos_w0 = Math.cos(w0),
@@ -65,13 +73,15 @@ export default {
     a2 = 1.0 - alpha,
 
     y0 = (x0*b0+x1*b1+x2*b2-y1*a1-y2*a2)/a0
-    _biquads[_biquads_i++] = [y0,y1,x0,x1]
+    b.y1=y0; b.y2=y1; b.x1=x0; b.x2=x1;
 
     return x0*(1-amt) + y0*amt
   },
 
   bp (x0, freq=1000, Q=1, amt=1) {
-    let [y1,y2,x1,x2] = _biquads[_biquads_i],
+    var b = _biquads[_biquads_i++],
+        {y1,y2,x1,x2} = b,
+
     w0 = pi2 * freq/sampleRate,
     sin_w0 = Math.sin(w0),
     cos_w0 = Math.cos(w0),
@@ -85,13 +95,15 @@ export default {
     a2 = 1.0 - alpha,
 
     y0 = (x0*b0+x1*b1+x2*b2-y1*a1-y2*a2)/a0
-    _biquads[_biquads_i++] = [y0,y1,x0,x1]
+    b.y1=y0; b.y2=y1; b.x1=x0; b.x2=x1;
 
     return x0*(1-amt) + y0*amt
   },
 
   bpp (x0, freq=1000, Q=1, amt=1) {
-    let [y1,y2,x1,x2] = _biquads[_biquads_i],
+    var b = _biquads[_biquads_i++],
+        {y1,y2,x1,x2} = b,
+
     w0 = pi2 * freq/sampleRate,
     sin_w0 = Math.sin(w0),
     cos_w0 = Math.cos(w0),
@@ -105,13 +117,15 @@ export default {
     a2 = 1.0 - alpha,
 
     y0 = (x0*b0+x1*b1+x2*b2-y1*a1-y2*a2)/a0
-    _biquads[_biquads_i++] = [y0,y1,x0,x1]
+    b.y1=y0; b.y2=y1; b.x1=x0; b.x2=x1;
 
     return x0*(1-amt) + y0*amt
   },
 
   not (x0, freq=1000, Q=1, amt=1) {
-    let [y1,y2,x1,x2] = _biquads[_biquads_i],
+    var b = _biquads[_biquads_i++],
+        {y1,y2,x1,x2} = b,
+
     w0 = pi2 * freq/sampleRate,
     sin_w0 = Math.sin(w0),
     cos_w0 = Math.cos(w0),
@@ -125,13 +139,15 @@ export default {
     a2 = 1.0 - alpha,
 
     y0 = (x0*b0+x1*b1+x2*b2-y1*a1-y2*a2)/a0
-    _biquads[_biquads_i++] = [y0,y1,x0,x1]
+    b.y1=y0; b.y2=y1; b.x1=x0; b.x2=x1;
 
     return x0*(1-amt) + y0*amt
   },
 
   ap (x0, freq=1000, Q=1, amt=1) {
-    let [y1,y2,x1,x2] = _biquads[_biquads_i],
+    var b = _biquads[_biquads_i++],
+        {y1,y2,x1,x2} = b,
+
     w0 = pi2 * freq/sampleRate,
     sin_w0 = Math.sin(w0),
     cos_w0 = Math.cos(w0),
@@ -145,13 +161,15 @@ export default {
     a2 = b0,
 
     y0 = (x0*b0+x1*b1+x2*b2-y1*a1-y2*a2)/a0
-    _biquads[_biquads_i++] = [y0,y1,x0,x1]
+    b.y1=y0; b.y2=y1; b.x1=x0; b.x2=x1;
 
     return x0*(1-amt) + y0*amt
   },
 
   pk (x0, freq=1000, Q=1, gain=1, amt=1) {
-    let [y1,y2,x1,x2] = _biquads[_biquads_i],
+    var b = _biquads[_biquads_i++],
+        {y1,y2,x1,x2} = b,
+
     w0 = pi2 * freq/sampleRate,
     sin_w0 = Math.sin(w0),
     cos_w0 = Math.cos(w0),
@@ -166,13 +184,15 @@ export default {
     a2 = 1.0 - alpha / a,
 
     y0 = (x0*b0+x1*b1+x2*b2-y1*a1-y2*a2)/a0
-    _biquads[_biquads_i++] = [y0,y1,x0,x1]
+    b.y1=y0; b.y2=y1; b.x1=x0; b.x2=x1;
 
     return x0*(1-amt) + y0*amt
   },
 
   ls (x0, freq=1000, Q=1, gain=1, amt=1) {
-    let [y1,y2,x1,x2] = _biquads[_biquads_i],
+    var b = _biquads[_biquads_i++],
+        {y1,y2,x1,x2} = b,
+
     w0 = pi2 * freq/sampleRate,
     sin_w0 = Math.sin(w0),
     cos_w0 = Math.cos(w0),
@@ -188,13 +208,15 @@ export default {
     a2 = (a + 1.0) + (a - 1.0) * cos_w0 - c,
 
     y0 = (x0*b0+x1*b1+x2*b2-y1*a1-y2*a2)/a0
-    _biquads[_biquads_i++] = [y0,y1,x0,x1]
+    b.y1=y0; b.y2=y1; b.x1=x0; b.x2=x1;
 
     return x0*(1-amt) + y0*amt
   },
 
   hs (x0, freq=1000, Q=1, gain=1, amt=1) {
-    let [y1,y2,x1,x2] = _biquads[_biquads_i],
+    var b = _biquads[_biquads_i++],
+        {y1,y2,x1,x2} = b,
+
     w0 = pi2 * freq/sampleRate,
     sin_w0 = Math.sin(w0),
     cos_w0 = Math.cos(w0),
@@ -210,7 +232,7 @@ export default {
     a2 = (a + 1.0) - (a - 1.0) * cos_w0 - c,
 
     y0 = (x0*b0+x1*b1+x2*b2-y1*a1-y2*a2)/a0
-    _biquads[_biquads_i++] = [y0,y1,x0,x1]
+    b.y1=y0; b.y2=y1; b.x1=x0; b.x2=x1;
 
     return x0*(1-amt) + y0*amt
   }

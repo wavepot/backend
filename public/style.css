@@ -237,6 +237,7 @@ html, body {
 }
 .toolbar button.eye circle {
   stroke: #fff;
+  fill: transparent;
   stroke-width: 1.5;
 }
 .toolbar button.eye.active circle {
@@ -248,6 +249,18 @@ html, body {
 }
 .toolbar button.eye.active:hover circle {
   visibility: hidden;
+}
+
+.toolbar button.code {
+  position: fixed;
+  padding: 0;
+  bottom: 5px;
+  right: 38px;
+}
+.toolbar button.code .path {
+  stroke: #fff;
+  stroke-width: 1.5;
+  fill: transparent;
 }
 
 

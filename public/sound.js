@@ -1,7 +1,9 @@
-import { parsePattern, stringToNote } from './util.js'
+import { parseFn, parsePattern, stringToNote } from './util.js'
 import Shared32Array from './shared32array.js'
 import Biquad from './biquad.js'
 import Oscs from './osc.js'
+
+self.Biquad = Biquad
 
 const PRIVATE_API = ['constructor','valueOf','_reset']
 const getMethods = (obj) => {
@@ -14,7 +16,7 @@ class Sound {
     this.Lx0 = 0
     this.Rx0 = 0
     this.t = 0
-    this._mod = Infinity
+    this.p = 0
     this._wavetables_i = 0
     this._wavetables = new Array(100).fill(0)
     this._widen_buffer = new Array(256)
@@ -35,7 +37,7 @@ class Sound {
     this._ignoreNext.grp = () => this._ignoreGrp
   }
 
-  _reset (t) {
+  _reset () {
     this.t = t
     this.p = n
     this._wavetables_i = 0
@@ -175,11 +177,18 @@ class Sound {
 Sound.prototype.mul = Sound.prototype.vol
 
 Object.keys(Biquad).forEach(m => {
-  Sound.prototype[m] = function (a0, a1, a2, a3) {
-    this.Lx0 = Biquad[m](this.Lx0, a0, a1, a2, a3)
-    this.Rx0 = Biquad[m](this.Rx0, a0, a1, a2, a3)
+  const { args, inner } = parseFn(Biquad[m])
+
+  const body = `
+    x0 = this.Lx0
+    ${inner.replace('return', 'this.Lx0 =')}
+    x0 = this.Rx0
+    ${inner.split('\n\n')[0]}
+    ${inner.replace('return', 'this.Rx0 =').split('\n\n').slice(-2).join('\n\n')}
     return this
-  }
+  `
+
+  Sound.prototype[m] = new Function(...args.slice(1), body)
 })
 
 self._wavetable = {}

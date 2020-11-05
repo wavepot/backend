@@ -50,7 +50,7 @@ self.sounds = Array.from(Array(100), () => (new Sound()))
 
 // biquads
 self._biquads_i = 0
-self._biquads = Array.from(Array(200),()=>([0,0,0,0]))
+self._biquads = Array.from(Array(200),()=>({y1:0,y2:0,x1:0,x2:0}))
 
 // delays
 self._delays_i = 0
@@ -96,18 +96,227 @@ self.api = {
   sync (x=1) {
     return (1/x) * _sync
   },
+
+  // oh no why is code repeating like that
+  // because it's optimized better at compile time
+
+  grp () {
+    let _s = sounds[sounds_i++]
+
+    _s.t = t
+    _s.p = n
+    _s._wavetables_i = 0
+
+    return _s.grp()
+  },
+
+  end () {
+    let _s = sounds[sounds_i++]
+
+    _s.t = t
+    _s.p = n
+    _s._wavetables_i = 0
+
+    return _s.end()
+  },
+
+  val (x) {
+    let _s = sounds[sounds_i++]
+
+    _s.t = t
+    _s.p = n
+    _s._wavetables_i = 0
+
+    return _s.val(x)
+  },
+
+  vol (x) {
+    let _s = sounds[sounds_i++]
+
+    _s.t = t
+    _s.p = n
+    _s._wavetables_i = 0
+
+    return _s.vol(x)
+  },
+
+  mod (x,a0) {
+    let _s = sounds[sounds_i++]
+
+    _s.t = t
+    _s.p = n
+    _s._wavetables_i = 0
+
+    return _s.mod(x,a0)
+  },
+
+  exp (x) {
+    let _s = sounds[sounds_i++]
+
+    _s.t = t
+    _s.p = n
+    _s._wavetables_i = 0
+
+    return _s.exp(x)
+  },
+
+  abs (x) {
+    let _s = sounds[sounds_i++]
+
+    _s.t = t
+    _s.p = n
+    _s._wavetables_i = 0
+
+    return _s.abs(x)
+  },
+
+  tanh (x) {
+    let _s = sounds[sounds_i++]
+
+    _s.t = t
+    _s.p = n
+    _s._wavetables_i = 0
+
+    return _s.tanh(x)
+  },
+
+  atan (x) {
+    let _s = sounds[sounds_i++]
+
+    _s.t = t
+    _s.p = n
+    _s._wavetables_i = 0
+
+    return _s.atan(x)
+  },
+
+  soft (x) {
+    let _s = sounds[sounds_i++]
+
+    _s.t = t
+    _s.p = n
+    _s._wavetables_i = 0
+
+    return _s.soft(x)
+  },
+
+  on (x,a0,a1) {
+    let _s = sounds[sounds_i++]
+
+    _s.t = t
+    _s.p = n
+    _s._wavetables_i = 0
+
+    return _s.on(x,a0,a1)
+  },
+
+  play (x,a0,a1,a2) {
+    let _s = sounds[sounds_i++]
+
+    _s.t = t
+    _s.p = n
+    _s._wavetables_i = 0
+
+    return _s.play(x,a0,a1,a2)
+  },
+
+  sin (x) {
+    let _s = sounds[sounds_i++]
+
+    _s.t = t
+    _s.p = n
+    _s._wavetables_i = 0
+
+    return _s.sin(x)
+  },
+
+  cos (x) {
+    let _s = sounds[sounds_i++]
+
+    _s.t = t
+    _s.p = n
+    _s._wavetables_i = 0
+
+    return _s.cos(x)
+  },
+
+  tri (x) {
+    let _s = sounds[sounds_i++]
+
+    _s.t = t
+    _s.p = n
+    _s._wavetables_i = 0
+
+    return _s.tri(x)
+  },
+
+  saw (x) {
+    let _s = sounds[sounds_i++]
+
+    _s.t = t
+    _s.p = n
+    _s._wavetables_i = 0
+
+    return _s.saw(x)
+  },
+
+  ramp (x) {
+    let _s = sounds[sounds_i++]
+
+    _s.t = t
+    _s.p = n
+    _s._wavetables_i = 0
+
+    return _s.ramp(x)
+  },
+
+  sqr (x) {
+    let _s = sounds[sounds_i++]
+
+    _s.t = t
+    _s.p = n
+    _s._wavetables_i = 0
+
+    return _s.sqr(x)
+  },
+
+  pulse (x) {
+    let _s = sounds[sounds_i++]
+
+    _s.t = t
+    _s.p = n
+    _s._wavetables_i = 0
+
+    return _s.pulse(x)
+  },
+
+  noise (x) {
+    let _s = sounds[sounds_i++]
+
+    _s.t = t
+    _s.p = n
+    _s._wavetables_i = 0
+
+    return _s.noise(x)
+  },
 }
-const IGNORE_METHODS = ['constructor','out']
-Object.getOwnPropertyNames(Sound.prototype)
-.filter(method => !IGNORE_METHODS.includes(method))
-.forEach(method => {
-  const { args, argNames } = parseFn(Sound.prototype[method])
-  self.api[method] = new Function(...args,
-    `
-return sounds[sounds_i++]._reset(t).${method}(${argNames})
-    `
-  )
-})
+// const METHODS = ['mod','val','on','grp','play',
+//   'sin','cos','tri','saw','ramp','sqr','pulse','noise']
+
+// METHODS.forEach(method => {
+//   const { args, argNames } = parseFn(Sound.prototype[method])
+//   self.api[method] = new Function(...args,
+//     `
+//     let _s = sounds[sounds_i++]
+
+//     _s.t = t
+//     _s.p = n
+//     _s._wavetables_i = 0
+
+//     return _s.${method}(${argNames})
+//     `
+//   )
+// })
 
 export const compile = (code) => {
   let src = `

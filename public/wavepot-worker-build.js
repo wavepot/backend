@@ -115,7 +115,9 @@ class Shared32Array {
 
 var Biquad = {
   lp1 (x0,freq=1000,amt=1) {
-    let [y1,y2,x1,x2] = _biquads[_biquads_i],
+    var b = _biquads[_biquads_i++],
+        {y1,y2,x1,x2} = b,
+
     w0 = pi2 * freq/sampleRate,
 
     a1 = -Math.exp(-w0),
@@ -124,13 +126,15 @@ var Biquad = {
     b1 = b2 = 0.0,
 
     y0 = (x0*b0+x1*b1+x2*b2-y1*a1-y2*a2);
-    _biquads[_biquads_i++] = [y0,y1,x0,x1];
+    b.y1=y0; b.y2=y1; b.x1=x0; b.x2=x1;
 
     return x0*(1-amt) + y0*amt
   },
 
   hp1 (x0,freq=1000,amt=1) {
-    let [y1,y2,x1,x2] = _biquads[_biquads_i],
+    var b = _biquads[_biquads_i++],
+        {y1,y2,x1,x2} = b,
+
     w0 = pi2 * freq/sampleRate,
 
     a1 = -Math.exp(-w0),
@@ -140,13 +144,15 @@ var Biquad = {
     b2 = 0.0,
 
     y0 = (x0*b0+x1*b1+x2*b2-y1*a1-y2*a2);
-    _biquads[_biquads_i++] = [y0,y1,x0,x1];
+    b.y1=y0; b.y2=y1; b.x1=x0; b.x2=x1;
 
     return x0*(1-amt) + y0*amt
   },
 
   lp (x0, freq=1000, Q=1, amt=1) {
-    let [y1,y2,x1,x2] = _biquads[_biquads_i],
+    var b = _biquads[_biquads_i++],
+        {y1,y2,x1,x2} = b,
+
     w0 = pi2 * freq/sampleRate,
     sin_w0 = Math.sin(w0),
     cos_w0 = Math.cos(w0),
@@ -160,13 +166,15 @@ var Biquad = {
     a2 =  1.0 - alpha,
 
     y0 = (x0*b0+x1*b1+x2*b2-y1*a1-y2*a2)/a0;
-    _biquads[_biquads_i++] = [y0,y1,x0,x1];
+    b.y1=y0; b.y2=y1; b.x1=x0; b.x2=x1;
 
     return x0*(1-amt) + y0*amt
   },
 
   hp (x0, freq=1000, Q=1, amt=1) {
-    let [y1,y2,x1,x2] = _biquads[_biquads_i],
+    var b = _biquads[_biquads_i++],
+        {y1,y2,x1,x2} = b,
+
     w0 = pi2 * freq/sampleRate,
     sin_w0 = Math.sin(w0),
     cos_w0 = Math.cos(w0),
@@ -180,13 +188,15 @@ var Biquad = {
     a2 = 1.0 - alpha,
 
     y0 = (x0*b0+x1*b1+x2*b2-y1*a1-y2*a2)/a0;
-    _biquads[_biquads_i++] = [y0,y1,x0,x1];
+    b.y1=y0; b.y2=y1; b.x1=x0; b.x2=x1;
 
     return x0*(1-amt) + y0*amt
   },
 
   bp (x0, freq=1000, Q=1, amt=1) {
-    let [y1,y2,x1,x2] = _biquads[_biquads_i],
+    var b = _biquads[_biquads_i++],
+        {y1,y2,x1,x2} = b,
+
     w0 = pi2 * freq/sampleRate,
     sin_w0 = Math.sin(w0),
     cos_w0 = Math.cos(w0),
@@ -200,13 +210,15 @@ var Biquad = {
     a2 = 1.0 - alpha,
 
     y0 = (x0*b0+x1*b1+x2*b2-y1*a1-y2*a2)/a0;
-    _biquads[_biquads_i++] = [y0,y1,x0,x1];
+    b.y1=y0; b.y2=y1; b.x1=x0; b.x2=x1;
 
     return x0*(1-amt) + y0*amt
   },
 
   bpp (x0, freq=1000, Q=1, amt=1) {
-    let [y1,y2,x1,x2] = _biquads[_biquads_i],
+    var b = _biquads[_biquads_i++],
+        {y1,y2,x1,x2} = b,
+
     w0 = pi2 * freq/sampleRate,
     sin_w0 = Math.sin(w0),
     cos_w0 = Math.cos(w0),
@@ -220,13 +232,15 @@ var Biquad = {
     a2 = 1.0 - alpha,
 
     y0 = (x0*b0+x1*b1+x2*b2-y1*a1-y2*a2)/a0;
-    _biquads[_biquads_i++] = [y0,y1,x0,x1];
+    b.y1=y0; b.y2=y1; b.x1=x0; b.x2=x1;
 
     return x0*(1-amt) + y0*amt
   },
 
   not (x0, freq=1000, Q=1, amt=1) {
-    let [y1,y2,x1,x2] = _biquads[_biquads_i],
+    var b = _biquads[_biquads_i++],
+        {y1,y2,x1,x2} = b,
+
     w0 = pi2 * freq/sampleRate,
     sin_w0 = Math.sin(w0),
     cos_w0 = Math.cos(w0),
@@ -240,13 +254,15 @@ var Biquad = {
     a2 = 1.0 - alpha,
 
     y0 = (x0*b0+x1*b1+x2*b2-y1*a1-y2*a2)/a0;
-    _biquads[_biquads_i++] = [y0,y1,x0,x1];
+    b.y1=y0; b.y2=y1; b.x1=x0; b.x2=x1;
 
     return x0*(1-amt) + y0*amt
   },
 
   ap (x0, freq=1000, Q=1, amt=1) {
-    let [y1,y2,x1,x2] = _biquads[_biquads_i],
+    var b = _biquads[_biquads_i++],
+        {y1,y2,x1,x2} = b,
+
     w0 = pi2 * freq/sampleRate,
     sin_w0 = Math.sin(w0),
     cos_w0 = Math.cos(w0),
@@ -260,13 +276,15 @@ var Biquad = {
     a2 = b0,
 
     y0 = (x0*b0+x1*b1+x2*b2-y1*a1-y2*a2)/a0;
-    _biquads[_biquads_i++] = [y0,y1,x0,x1];
+    b.y1=y0; b.y2=y1; b.x1=x0; b.x2=x1;
 
     return x0*(1-amt) + y0*amt
   },
 
   pk (x0, freq=1000, Q=1, gain=1, amt=1) {
-    let [y1,y2,x1,x2] = _biquads[_biquads_i],
+    var b = _biquads[_biquads_i++],
+        {y1,y2,x1,x2} = b,
+
     w0 = pi2 * freq/sampleRate,
     sin_w0 = Math.sin(w0),
     cos_w0 = Math.cos(w0),
@@ -281,13 +299,15 @@ var Biquad = {
     a2 = 1.0 - alpha / a,
 
     y0 = (x0*b0+x1*b1+x2*b2-y1*a1-y2*a2)/a0;
-    _biquads[_biquads_i++] = [y0,y1,x0,x1];
+    b.y1=y0; b.y2=y1; b.x1=x0; b.x2=x1;
 
     return x0*(1-amt) + y0*amt
   },
 
   ls (x0, freq=1000, Q=1, gain=1, amt=1) {
-    let [y1,y2,x1,x2] = _biquads[_biquads_i],
+    var b = _biquads[_biquads_i++],
+        {y1,y2,x1,x2} = b,
+
     w0 = pi2 * freq/sampleRate,
     sin_w0 = Math.sin(w0),
     cos_w0 = Math.cos(w0),
@@ -303,13 +323,15 @@ var Biquad = {
     a2 = (a + 1.0) + (a - 1.0) * cos_w0 - c,
 
     y0 = (x0*b0+x1*b1+x2*b2-y1*a1-y2*a2)/a0;
-    _biquads[_biquads_i++] = [y0,y1,x0,x1];
+    b.y1=y0; b.y2=y1; b.x1=x0; b.x2=x1;
 
     return x0*(1-amt) + y0*amt
   },
 
   hs (x0, freq=1000, Q=1, gain=1, amt=1) {
-    let [y1,y2,x1,x2] = _biquads[_biquads_i],
+    var b = _biquads[_biquads_i++],
+        {y1,y2,x1,x2} = b,
+
     w0 = pi2 * freq/sampleRate,
     sin_w0 = Math.sin(w0),
     cos_w0 = Math.cos(w0),
@@ -325,7 +347,7 @@ var Biquad = {
     a2 = (a + 1.0) - (a - 1.0) * cos_w0 - c,
 
     y0 = (x0*b0+x1*b1+x2*b2-y1*a1-y2*a2)/a0;
-    _biquads[_biquads_i++] = [y0,y1,x0,x1];
+    b.y1=y0; b.y2=y1; b.x1=x0; b.x2=x1;
 
     return x0*(1-amt) + y0*amt
   }
@@ -344,6 +366,8 @@ O.noise = function (x=1) {
   return (x-Math.floor(x))*2-1
 };
 
+self.Biquad = Biquad;
+
 const PRIVATE_API = ['constructor','valueOf','_reset'];
 const getMethods = (obj) => {
   return Object.getOwnPropertyNames(obj)
@@ -355,7 +379,7 @@ class Sound {
     this.Lx0 = 0;
     this.Rx0 = 0;
     this.t = 0;
-    this._mod = Infinity;
+    this.p = 0;
     this._wavetables_i = 0;
     this._wavetables = new Array(100).fill(0);
     this._widen_buffer = new Array(256);
@@ -376,7 +400,7 @@ class Sound {
     this._ignoreNext.grp = () => this._ignoreGrp;
   }
 
-  _reset (t) {
+  _reset () {
     this.t = t;
     this.p = n;
     this._wavetables_i = 0;
@@ -516,11 +540,18 @@ class Sound {
 Sound.prototype.mul = Sound.prototype.vol;
 
 Object.keys(Biquad).forEach(m => {
-  Sound.prototype[m] = function (a0, a1, a2, a3) {
-    this.Lx0 = Biquad[m](this.Lx0, a0, a1, a2, a3);
-    this.Rx0 = Biquad[m](this.Rx0, a0, a1, a2, a3);
+  const { args, inner } = parseFn(Biquad[m]);
+
+  const body = `
+    x0 = this.Lx0
+    ${inner.replace('return', 'this.Lx0 =')}
+    x0 = this.Rx0
+    ${inner.split('\n\n')[0]}
+    ${inner.replace('return', 'this.Rx0 =').split('\n\n').slice(-2).join('\n\n')}
     return this
-  };
+  `;
+
+  Sound.prototype[m] = new Function(...args.slice(1), body);
 });
 
 self._wavetable = {};
@@ -1005,7 +1036,7 @@ self.sounds = Array.from(Array(100), () => (new Sound()));
 
 // biquads
 self._biquads_i = 0;
-self._biquads = Array.from(Array(200),()=>([0,0,0,0]));
+self._biquads = Array.from(Array(200),()=>({y1:0,y2:0,x1:0,x2:0}));
 
 // delays
 self._delays_i = 0;
@@ -1051,18 +1082,227 @@ self.api = {
   sync (x=1) {
     return (1/x) * _sync
   },
+
+  // oh no why is code repeating like that
+  // because it's optimized better at compile time
+
+  grp () {
+    let _s = sounds[sounds_i++];
+
+    _s.t = t;
+    _s.p = n;
+    _s._wavetables_i = 0;
+
+    return _s.grp()
+  },
+
+  end () {
+    let _s = sounds[sounds_i++];
+
+    _s.t = t;
+    _s.p = n;
+    _s._wavetables_i = 0;
+
+    return _s.end()
+  },
+
+  val (x) {
+    let _s = sounds[sounds_i++];
+
+    _s.t = t;
+    _s.p = n;
+    _s._wavetables_i = 0;
+
+    return _s.val(x)
+  },
+
+  vol (x) {
+    let _s = sounds[sounds_i++];
+
+    _s.t = t;
+    _s.p = n;
+    _s._wavetables_i = 0;
+
+    return _s.vol(x)
+  },
+
+  mod (x,a0) {
+    let _s = sounds[sounds_i++];
+
+    _s.t = t;
+    _s.p = n;
+    _s._wavetables_i = 0;
+
+    return _s.mod(x,a0)
+  },
+
+  exp (x) {
+    let _s = sounds[sounds_i++];
+
+    _s.t = t;
+    _s.p = n;
+    _s._wavetables_i = 0;
+
+    return _s.exp(x)
+  },
+
+  abs (x) {
+    let _s = sounds[sounds_i++];
+
+    _s.t = t;
+    _s.p = n;
+    _s._wavetables_i = 0;
+
+    return _s.abs(x)
+  },
+
+  tanh (x) {
+    let _s = sounds[sounds_i++];
+
+    _s.t = t;
+    _s.p = n;
+    _s._wavetables_i = 0;
+
+    return _s.tanh(x)
+  },
+
+  atan (x) {
+    let _s = sounds[sounds_i++];
+
+    _s.t = t;
+    _s.p = n;
+    _s._wavetables_i = 0;
+
+    return _s.atan(x)
+  },
+
+  soft (x) {
+    let _s = sounds[sounds_i++];
+
+    _s.t = t;
+    _s.p = n;
+    _s._wavetables_i = 0;
+
+    return _s.soft(x)
+  },
+
+  on (x,a0,a1) {
+    let _s = sounds[sounds_i++];
+
+    _s.t = t;
+    _s.p = n;
+    _s._wavetables_i = 0;
+
+    return _s.on(x,a0,a1)
+  },
+
+  play (x,a0,a1,a2) {
+    let _s = sounds[sounds_i++];
+
+    _s.t = t;
+    _s.p = n;
+    _s._wavetables_i = 0;
+
+    return _s.play(x,a0,a1,a2)
+  },
+
+  sin (x) {
+    let _s = sounds[sounds_i++];
+
+    _s.t = t;
+    _s.p = n;
+    _s._wavetables_i = 0;
+
+    return _s.sin(x)
+  },
+
+  cos (x) {
+    let _s = sounds[sounds_i++];
+
+    _s.t = t;
+    _s.p = n;
+    _s._wavetables_i = 0;
+
+    return _s.cos(x)
+  },
+
+  tri (x) {
+    let _s = sounds[sounds_i++];
+
+    _s.t = t;
+    _s.p = n;
+    _s._wavetables_i = 0;
+
+    return _s.tri(x)
+  },
+
+  saw (x) {
+    let _s = sounds[sounds_i++];
+
+    _s.t = t;
+    _s.p = n;
+    _s._wavetables_i = 0;
+
+    return _s.saw(x)
+  },
+
+  ramp (x) {
+    let _s = sounds[sounds_i++];
+
+    _s.t = t;
+    _s.p = n;
+    _s._wavetables_i = 0;
+
+    return _s.ramp(x)
+  },
+
+  sqr (x) {
+    let _s = sounds[sounds_i++];
+
+    _s.t = t;
+    _s.p = n;
+    _s._wavetables_i = 0;
+
+    return _s.sqr(x)
+  },
+
+  pulse (x) {
+    let _s = sounds[sounds_i++];
+
+    _s.t = t;
+    _s.p = n;
+    _s._wavetables_i = 0;
+
+    return _s.pulse(x)
+  },
+
+  noise (x) {
+    let _s = sounds[sounds_i++];
+
+    _s.t = t;
+    _s.p = n;
+    _s._wavetables_i = 0;
+
+    return _s.noise(x)
+  },
 };
-const IGNORE_METHODS = ['constructor','out'];
-Object.getOwnPropertyNames(Sound.prototype)
-.filter(method => !IGNORE_METHODS.includes(method))
-.forEach(method => {
-  const { args, argNames } = parseFn(Sound.prototype[method]);
-  self.api[method] = new Function(...args,
-    `
-return sounds[sounds_i++]._reset(t).${method}(${argNames})
-    `
-  );
-});
+// const METHODS = ['mod','val','on','grp','play',
+//   'sin','cos','tri','saw','ramp','sqr','pulse','noise']
+
+// METHODS.forEach(method => {
+//   const { args, argNames } = parseFn(Sound.prototype[method])
+//   self.api[method] = new Function(...args,
+//     `
+//     let _s = sounds[sounds_i++]
+
+//     _s.t = t
+//     _s.p = n
+//     _s._wavetables_i = 0
+
+//     return _s.${method}(${argNames})
+//     `
+//   )
+// })
 
 const compile = (code) => {
   let src = `

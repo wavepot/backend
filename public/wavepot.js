@@ -10,6 +10,7 @@ import ButtonSave from './components/button-save.js'
 import ButtonLike from './components/button-like.js'
 import ButtonShare from './components/button-share.js'
 import ButtonEye from './components/button-eye.js'
+import ButtonCode from './components/button-code.js'
 
 self.IS_DEV = !!location.port && location.port != '3000'
 
@@ -42,7 +43,7 @@ class Wavepot extends Rpc {
 
     try {
       const { shaderFunc, rest } = shader.extractAndCompile(code)
-      shader.shaderFunc = shaderFunc
+      shader.shaderFunc = shaderFunc ?? shader.shaderFunc
       code = rest
       if (shader.shaderFunc) {
         console.log('compiled shader')
@@ -95,15 +96,30 @@ new ButtonLike(toolbar)
 new ButtonShare(toolbar)
 const logoButton = new ButtonLogo(toolbar)
 const eyeButton = new ButtonEye(toolbar)
+let gfxActive = true
 eyeButton.eye.addEventListener('click', () => {
   if (eyeButton.eye.classList.contains('active')) {
     eyeButton.eye.classList.remove('active')
+    gfxActive = true
     document.querySelector('.back-canvas').style.display = 'block'
     document.querySelector('.shader-canvas').style.display = 'block'
   } else {
     eyeButton.eye.classList.add('active')
+    gfxActive = false
     document.querySelector('.back-canvas').style.display = 'none'
     document.querySelector('.shader-canvas').style.display = 'none'
+  }
+})
+const codeButton = new ButtonCode(toolbar)
+codeButton.code.addEventListener('click', () => {
+  if (codeButton.code.classList.contains('active')) {
+    codeButton.code.classList.remove('active')
+    document.querySelector('.editor').style.display = 'block'
+    document.querySelector('.track-list').style.display = 'block'
+  } else {
+    codeButton.code.classList.add('active')
+    document.querySelector('.editor').style.display = 'none'
+    document.querySelector('.track-list').style.display = 'none'
   }
 })
 
@@ -135,6 +151,7 @@ menu.innerHTML = `<div class="menu-inner">
 <button id="openinitial">load initial demo</button>
 <button id="importjson">import from json</button>
 <button id="exportjson">export to json</button>
+<button id="record">record</button>
 <!-- <div class="menu-select-item"><a href="#">browse</a></div>
 <div class="menu-select-item"><a href="#">saves</a></div>
 <div class="menu-select-item"><a href="#">favorites</a></div>
@@ -356,6 +373,59 @@ async function main () {
     a.download = name
     a.click()
   }, { capture: true })
+  menu.querySelector('#record').addEventListener('click', e => {
+    menuHide()
+    play((time) => {
+      const audioStreamDest = audio.createMediaStreamDestination()
+      gainNode.connect(audioStreamDest)
+      console.log('audio stream capture started')
+
+      const canvasStream = shader.canvas.captureStream(25)
+      console.log('canvas stream capture started')
+
+      canvasStream.addTrack(audioStreamDest.stream.getAudioTracks()[0])
+      console.log('merged streams')
+
+      const mediaRecorder = new MediaRecorder(canvasStream, { mimeType: 'video/webm;codecs=h264' })
+      // mediaRecorder.ignoreMutedMedia = true
+
+      const chunks = []
+      mediaRecorder.ondataavailable = e => {
+        chunks.push(e.data)
+        console.log('data from media recorder:', chunks.length)
+      }
+
+      mediaRecorder.onstart = () => {
+        console.log('started recording')
+        setTimeout(() => {
+          mediaRecorder.stop()
+          toggle()
+        }, 8000)
+      }
+      mediaRecorder.onstop = async function(evt) {
+        console.log('stopped recording')
+        const name = new Date().toISOString().replace(/[^0-9]/g, ' ').trim().split(' ').slice(0, -1).join('-') + '.mp4'
+        let blob = new Blob(chunks, { type: 'video/webm;codecs=h264' })
+        const arrayBuffer = await blob.arrayBuffer()
+        await import('./ffmpeg/ffmpeg.min.js')
+        const { createFFmpeg } = FFmpeg
+        const ffmpeg = createFFmpeg({ log: true })
+        await ffmpeg.load()
+        await ffmpeg.write('record.webm', new Uint8Array(arrayBuffer))
+        await ffmpeg.run('-i record.webm -c:v libx264 -preset veryslow -crf 17 -vf format=yuv420p,fps=25 -c:a aac -ar 44100 output.mp4')
+        const data = ffmpeg.read('output.mp4')
+        blob = new Blob([data.buffer], { type: 'video/mp4' })
+        const a = document.createElement('a')
+        a.href = URL.createObjectURL(blob)
+        a.download = name
+        a.click()
+      }
+      console.log('schedule to start recording:', time)
+      setTimeout(() => {
+        mediaRecorder.start()
+      }, time * 1000 - 100)
+    })
+  }, { capture: true })
 
 
   tracks.slice(1).forEach(data => editor.addSubEditor(data))
@@ -458,7 +528,7 @@ const drawWave = () => {
   ctx.stroke()
 }
 
-let toggle = async () => {
+let toggle = async (cb) => {
   audio = new AudioContext({
     numberOfChannels,
     sampleRate,
@@ -490,7 +560,7 @@ let toggle = async () => {
     return time + remain + offsetTime
   }
 
-  playNext = async () => {
+  playNext = async (cb) => {
     if (!isPlaying) return false
     if (isRendering) return false
 
@@ -573,6 +643,8 @@ let toggle = async () => {
     bar.stop(syncTime + Math.max(0.001, duration - Math.max(duration/2, (timeToRender*.001)*1.3) ))
 
     bufferSourceNode.start(syncTime)
+
+    if (cb) cb(syncTime - audio.currentTime)
   }
 
   console.log('connected node')
@@ -585,11 +657,12 @@ let toggle = async () => {
   const startAnim = () => {
     const tick = () => {
       animFrame = requestAnimationFrame(tick)
+      drawWave()
+      if (!gfxActive) return
       shader.time = (audio.currentTime - origSyncTime) * coeff
       clockBar.textContent =  Math.max(1, Math.floor(shader.time % 16) + 1)
       clockBeat.textContent = Math.max(1, Math.floor((shader.time*4) % 4) + 1)
       clockSixt.textContent = Math.max(1, Math.floor((shader.time*16) % 16) + 1)
-      drawWave()
       shader.tick()
     }
     animFrame = requestAnimationFrame(tick)
@@ -600,10 +673,10 @@ let toggle = async () => {
     cancelAnimationFrame(animFrame)
   }
 
-  const start = () => {
+  const start = (cb) => {
     gainNode.gain.value = 1.0
     isPlaying = true
-    playNext()
+    playNext(cb)
     startAnim()
     playButton.setIconPause()
     toggle = () => {
@@ -622,16 +695,16 @@ let toggle = async () => {
 
   await wavepot.compile()
 
-  start()
+  start(cb)
 }
 
-const play = () => {
+const play = (cb) => {
   editor.update(() => {
     wavepot.compile().then(() => {
       if (!isPlaying) {
-        toggle()
+        toggle(cb)
       }
-      playNext()
+      playNext(cb)
     })
   })
 }
