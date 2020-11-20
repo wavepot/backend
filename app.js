@@ -24,6 +24,11 @@ const SPA_PATH = path.join(PUBLIC_PATH, 'index.html')
 const app = module.exports = express()
 const port = env === 'test' ? 3001 : 3000
 
+app.use((req, res, next) => {
+  res.header("Cross-Origin-Opener-Policy", "same-origin")
+  res.header("Cross-Origin-Embedder-Policy", "require-corp")
+})
+
 if (env === 'development') {
   app.use((req, res, next) => {
     res.header("Access-Control-Allow-Origin", "*")
